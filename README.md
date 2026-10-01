@@ -16,10 +16,14 @@
 
 ## Features
 
-- **Sizing Pre-Scan**: Dynamically measures directory sizes across all targets in milliseconds before prompting, showing exact detected space (e.g., `Found 623.21 MB`).
+- **Sizing Pre-Scan**: Dynamically measures directory sizes across all 22 targets in milliseconds before prompting, showing exact detected space (e.g., `Found 8.57 GB`).
 - **Automatic 0-Byte Bypass**: Targets with 0 bytes, empty caches, or uninstalled applications are automatically excluded from the selection wizard and skipped.
+- **Individual Browser Granularity**: Dedicated prompts and controls for **Google Chrome**, **Mozilla Firefox**, and **Brave Browser** (scans all user profiles).
+- **Individual Game Launcher Granularity**: Dedicated prompts and controls for **Steam** and **Epic Games Store**.
+- **GPU Hardware Shader Pruning**: Purges unmanaged NVIDIA, AMD, and Intel hardware shader disks alongside DirectX `D3DSCache`.
+- **System Drive Portability**: Automatically resolves system drive letters (`$env:SystemDrive`, `$env:SystemRoot`) rather than assuming static `C:\`.
 - **QuickEdit Freeze Prevention**: Dynamically disables console QuickEdit mode via low-level Win32 API (`kernel32.dll` `SetConsoleMode`), preventing accidental process suspension when clicking inside the terminal.
-- **Real-Time DISM Progress**: Streams live progress percentages (`[====== 100.0% ======]`) during WinSxS Component Store consolidation (`DISM /ResetBase`).
+- **Real-Time DISM Progress**: Streams live progress percentages (`Progress: [====== 20.0% ======]`) indented cleanly during WinSxS consolidation (`DISM /ResetBase`).
 - **Zero Emojis**: Clean, modern terminal formatting using standard ASCII dividers, aligned status badges (`[ CLEANING ]`, `[ SKIPPED  ]`, `[ DRY-RUN  ]`), and free space scorecards.
 - **Preserves Critical User Data**: Browser logins, cookies, session history, game installations, and save files are strictly preserved.
 
@@ -43,39 +47,69 @@
        Found 5.81 MB disposable temporary caches in %TEMP% and C:\Windows\Temp
        Clean this target? [Y/n]: 
 
-  [02] DirectX Shader Cache & Error Reporting Logs
-       Found 387.1 KB shaders and WER report archives
+  [02] DirectX, GPU Shaders & Error Reporting Logs
+       Found 1.91 GB shaders (DirectX, NVIDIA, AMD, Intel) and WER archives
        Clean this target? [Y/n]: 
 
-  [04] Windows Delivery Optimization Cache - None found / 0 B (Clean)
-
-  [05] Web Browser Caches (Edge, Chrome, Brave)
-       Found 623.21 MB cached web assets and code caches
+  [03] Windows Recycle Bin
+       Found 3.52 GB discarded files across drive bins
        Clean this target? [Y/n]: 
 
-  [06] Spotify & Discord Media Caches - None found / 0 B (Clean)
+  [04] Explorer Thumbnail & Icon Caches
+       Found 47.3 MB cached Explorer thumbnail databases (thumbcache_*.db)
+       Clean this target? [Y/n]: 
 
-  [07] Game Launcher Caches (Steam, Epic, Ubisoft, Riot) - None found / 0 B (Clean)
+  [06] Windows Delivery Optimization Cache - None found / 0 B (Clean)
+
+  [07] Google Chrome Web & Code Cache
+       Found 8.57 GB cached web assets and compiled code caches across profiles
+       Clean this target? [Y/n]: 
+
+  [08] Mozilla Firefox Web & Startup Cache
+       Found 717.05 MB offline cache2 files and startup cache across profiles
+       Clean this target? [Y/n]: 
+
+  [09] Brave Browser Web & Code Cache
+       Found 512.78 MB cached web assets and compiled code caches across profiles
+       Clean this target? [Y/n]: 
+
+  [10] Media & Chat Caches (Spotify, Discord, Slack, Teams, Telegram, Zoom)
+       Found 340.50 MB streaming audio, chat media, and code caches
+       Clean this target? [Y/n]: 
+
+  [11] Steam Web & HTTP Cache - None found / 0 B (Clean)
+
+  [12] Epic Games Store Web Cache - None found / 0 B (Clean)
 
 ========================================================================
                        EXECUTING STORAGE CLEANUP                        
 ========================================================================
 
   [ CLEANING ] User and Windows Temp Directories...
-               Purged %TEMP% and C:\Windows\Temp disposable caches.
+               Purged %TEMP%, C:\Windows\Temp, and ServiceProfile disposable caches.
 
-  [ CLEANING ] Web Browser Caches (Edge, Chrome, Brave)...
-               Purged browser cache directories.
+  [ CLEANING ] DirectX, GPU Shaders & Windows Error Reporting Logs...
+               Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs.
 
-  [ SKIPPED  ] Spotify & Discord Media Caches
+  [ CLEANING ] Windows Recycle Bin...
+               Emptied Windows Recycle Bin across all drives.
+
+  [ CLEANING ] Google Chrome Web & Code Cache...
+               Purged Google Chrome web cache, code cache, and GPU cache.
+
+  [ CLEANING ] Mozilla Firefox Web & Startup Cache...
+               Purged Mozilla Firefox cache2 and startupCache directories.
+
+  [ CLEANING ] Brave Browser Web & Code Cache...
+               Purged Brave Browser web cache, code cache, and GPU cache.
 
 ========================================================================
                         CLEANUP SUMMARY REPORT                          
 ========================================================================
   Target Volume         : Drive C:
   Starting Free Space   : 14.74 GB
-  Ending Free Space     : 15.38 GB
-  Total Space Reclaimed : +0.64 GB
+  Ending Free Space     : 29.53 GB
+  Total Space Reclaimed : +14.79 GB
   Overall Status        : Completed Successfully
 ========================================================================
 ```
@@ -110,26 +144,32 @@ Clone the repository and run directly from an elevated terminal:
 
 ---
 
-## Cleanup Targets (16 Categories)
+## Cleanup Targets (22 Categories)
 
 | # | Category | Scope / Path | Requires Admin | Default Prompt | Skip Flag |
 | :---: | :--- | :--- | :---: | :---: | :--- |
-| **01** | **User & Windows Temp** | `%TEMP%`, `C:\Windows\Temp` | No | `[Y/n]` | — |
-| **02** | **DirectX Shaders & WER** | `D3DSCache`, `DirectX Shader Cache`, WER report archives | No | `[Y/n]` | — |
-| **03** | **Windows Update Store** | `C:\Windows\SoftwareDistribution\Download` | **Yes** | `[Y/n]` | — |
-| **04** | **Delivery Optimization** | Windows peer-to-peer update distribution cache | No | `[Y/n]` | — |
-| **05** | **Browser Caches** | Edge, Chrome, and Brave cache & code cache directories | No | `[Y/n]` | `-SkipBrowsers` |
-| **06** | **Media & Chat Caches** | Spotify streaming storage, Discord cache & code cache | No | `[Y/n]` | `-SkipMediaApps` |
-| **07** | **Game Launcher Caches** | Steam httpcache, Epic webcache, Ubisoft & Riot logs | No | `[Y/n]` | `-SkipGames` |
-| **08** | **Developer Caches** | Pip wheel download cache, VS Code cache & telemetry | No | `[Y/n]` | — |
-| **09** | **Volume Shadow Copies** | Purges oldest shadow copy snapshots via `vssadmin` | **Yes** | `[Y/n]` | `-SkipRestorePoints` |
-| **10** | **Upgrade Folders** | `C:\Windows.old`, `C:\$WINDOWS.~BT`, `C:\$WINDOWS.~WS` | **Yes** | `[Y/n]` | `-SkipUpgradeFolders` |
-| **11** | **Kernel Crash Dumps** | `C:\Windows\MEMORY.DMP`, `C:\Windows\Minidump` | **Yes** | `[Y/n]` | `-SkipCrashDumps` |
-| **12** | **CBS & DISM Logs** | `C:\Windows\Logs\CBS\CbsPersist_*.cab`, `dism.log` | **Yes** | `[Y/n]` | `-SkipCBSLogs` |
-| **13** | **Hibernation File** | Disables hibernation via `powercfg -h off` (`C:\hiberfil.sys`) | **Yes** | `[Y/n]` | `-SkipHiberfil` |
-| **14** | **Obsolete OEM Drivers** | Superseded INF packages in DriverStore via `pnputil` | **Yes** | `[Y/n]` | `-SkipDrivers` |
-| **15** | **Windows Search Index** | Resets `SetupCompletedSuccessfully` and rebuilds index | **Yes** | `[Y/n]` | `-SkipSearchIndex` |
-| **16** | **WinSxS Component Store** | `DISM /StartComponentCleanup /ResetBase` | **Yes** | `[y/N]` *(Opt-in)* | `-SkipDism` |
+| **01** | **User & Windows Temp** | `%TEMP%`, `C:\Windows\Temp`, ServiceProfile Temp | No | `[Y/n]` | — |
+| **02** | **DirectX & GPU Shaders** | `D3DSCache`, NVIDIA (`DXCache`/`GLCache`), AMD, Intel, WER | No | `[Y/n]` | — |
+| **03** | **Windows Recycle Bin** | Empty recycle bins across all drives via `Clear-RecycleBin` | No | `[Y/n]` | `-SkipRecycleBin` |
+| **04** | **Explorer Thumbnails & Icons** | Explorer `thumbcache_*.db`, `iconcache_*.db`, `IconCache.db` | No | `[Y/n]` | `-SkipThumbnails` |
+| **05** | **Windows Update Store** | `C:\Windows\SoftwareDistribution\Download` | **Yes** | `[Y/n]` | — |
+| **06** | **Delivery Optimization** | Windows peer-to-peer update distribution cache | No | `[Y/n]` | — |
+| **07** | **Google Chrome Cache** | Chrome web cache, code cache, GPUCache across all profiles | No | `[Y/n]` | `-SkipChrome` *(or `-SkipBrowsers`)* |
+| **08** | **Mozilla Firefox Cache** | Firefox `cache2` and `startupCache` across all profiles | No | `[Y/n]` | `-SkipFirefox` *(or `-SkipBrowsers`)* |
+| **09** | **Brave Browser Cache** | Brave web cache, code cache, GPUCache across all profiles | No | `[Y/n]` | `-SkipBrave` *(or `-SkipBrowsers`)* |
+| **10** | **Media & Chat Caches** | Spotify, Discord, Slack, Microsoft Teams, Telegram, Zoom | No | `[Y/n]` | `-SkipMediaApps` |
+| **11** | **Steam Launcher Cache** | Steam `htmlcache` and `appcache\httpcache` | No | `[Y/n]` | `-SkipSteam` *(or `-SkipGames`)* |
+| **12** | **Epic Games Store Cache** | Epic Games Launcher `Saved\webcache*` | No | `[Y/n]` | `-SkipEpic` *(or `-SkipGames`)* |
+| **13** | **Developer Toolchains** | Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, Go | No | `[Y/n]` | `-SkipDevCaches` |
+| **14** | **Creative Media Caches** | Adobe Common Media Cache, DaVinci Resolve `CacheClip` | No | `[Y/n]` | `-SkipCreativeApps` |
+| **15** | **Volume Shadow Copies** | Purges oldest shadow copy snapshots via `vssadmin` | **Yes** | `[Y/n]` | `-SkipRestorePoints` |
+| **16** | **Upgrade Folders** | `C:\Windows.old`, `$WINDOWS.~BT`, `$WINDOWS.~WS`, `$GetCurrent` | **Yes** | `[Y/n]` | `-SkipUpgradeFolders` |
+| **17** | **Crash Dumps** | `MEMORY.DMP`, `Minidump`, `LiveKernelReports`, `CrashDumps` | **Yes** / No | `[Y/n]` | `-SkipCrashDumps` |
+| **18** | **CBS, DISM & Panther Logs** | `CbsPersist_*.cab`, `dism.log`, `Panther`, `ETLLogs` | **Yes** | `[Y/n]` | `-SkipCBSLogs` |
+| **19** | **Hibernation File** | Disables hibernation via `powercfg -h off` (`C:\hiberfil.sys`) | **Yes** | `[Y/n]` | `-SkipHiberfil` |
+| **20** | **Obsolete OEM Drivers** | Superseded INF packages in DriverStore via `pnputil` | **Yes** | `[Y/n]` | `-SkipDrivers` |
+| **21** | **Windows Search Index** | Resets `SetupCompletedSuccessfully` and rebuilds index | **Yes** | `[Y/n]` | `-SkipSearchIndex` |
+| **22** | **WinSxS Component Store** | `DISM /StartComponentCleanup /ResetBase` | **Yes** | `[y/N]` *(Opt-in)* | `-SkipDism` |
 
 ---
 
@@ -139,13 +179,22 @@ Clone the repository and run directly from an elevated terminal:
 | :--- | :--- |
 | `-All` | Cleans all eligible targets without interactive Yes/No confirmation prompts. |
 | `-DryRun` | Simulates cleanup and prints targets without deleting files. |
-| `-SkipBrowsers` | Skips Edge, Chrome, and Brave browser caches. |
-| `-SkipMediaApps` | Skips Spotify and Discord media caches. |
-| `-SkipGames` | Skips Steam, Epic Games, Ubisoft Connect, and Riot Client caches. |
+| `-SkipRecycleBin` | Skips emptying the Windows Recycle Bin. |
+| `-SkipThumbnails` | Skips purging Windows Explorer thumbnail and icon caches. |
+| `-SkipBrowsers` | Skips all web browser caches (Chrome, Firefox, and Brave). |
+| `-SkipChrome` | Skips Google Chrome web and code caches. |
+| `-SkipFirefox` | Skips Mozilla Firefox web and startup caches. |
+| `-SkipBrave` | Skips Brave Browser web and code caches. |
+| `-SkipMediaApps` | Skips Spotify, Discord, Slack, Microsoft Teams, Telegram, and Zoom caches. |
+| `-SkipGames` | Skips all game launcher caches (Steam and Epic Games Store). |
+| `-SkipSteam` | Skips Steam web and HTTP network caches. |
+| `-SkipEpic` | Skips Epic Games Store web caches. |
+| `-SkipDevCaches` | Skips Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, and Go caches. |
+| `-SkipCreativeApps` | Skips Adobe Common Media Cache and DaVinci Resolve render cache files. |
 | `-SkipRestorePoints` | Skips purging oldest volume shadow copies. |
-| `-SkipUpgradeFolders` | Skips deleting `Windows.old` and `$WINDOWS.~BT` rollback folders. |
-| `-SkipCrashDumps` | Skips deleting kernel memory crash dumps and minidumps. |
-| `-SkipCBSLogs` | Skips purging CBS persist archives and truncating DISM logs. |
+| `-SkipUpgradeFolders` | Skips deleting `Windows.old`, `$WINDOWS.~BT`, and `$GetCurrent` rollback folders. |
+| `-SkipCrashDumps` | Skips deleting kernel and user-mode memory crash dumps (`CrashDumps`). |
+| `-SkipCBSLogs` | Skips purging CBS persist archives, Panther logs, and truncating DISM logs. |
 | `-SkipHiberfil` | Skips disabling hibernation and deleting `C:\hiberfil.sys`. |
 | `-SkipDrivers` | Skips scanning and purging superseded OEM drivers via `pnputil`. |
 | `-SkipSearchIndex` | Skips resetting and rebuilding the Windows Search index database. |
@@ -163,8 +212,8 @@ Clone the repository and run directly from an elevated terminal:
 # Dry run simulation:
 .\cleanup.ps1 -DryRun
 
-# Automated cleanup skipping system restore points and drivers:
-.\cleanup.ps1 -All -SkipRestorePoints -SkipDrivers
+# Automated cleanup skipping system restore points, drivers, and Chrome:
+.\cleanup.ps1 -All -SkipRestorePoints -SkipDrivers -SkipChrome
 ```
 
 ---
@@ -176,6 +225,7 @@ For users who prefer running specific commands individually:
 ### Navigation
 
 - [1. System & OS-Level Storage](#system-storage)
+  - [Empty Windows Recycle Bin](#recycle-bin)
   - [Disable or Shrink Hibernation](#disable-hibernation)
   - [Deep Component Store Cleanup (ResetBase)](#resetbase-cleanup)
   - [Clear Windows Update Download Cache](#update-cache)
@@ -183,19 +233,22 @@ For users who prefer running specific commands individually:
   - [Rebuild Windows Explorer Thumbnail Cache](#thumbnail-cache)
   - [Purge Oldest Volume Shadow Copies](#shadow-copies)
   - [Delete Leftover Windows Upgrade Folders](#upgrade-folders)
-  - [Delete Kernel Crash Dump Files](#crash-dumps)
-  - [Purge CBS & DISM Log Archives](#cbs-logs)
+  - [Delete Crash Dump Files](#crash-dumps)
+  - [Purge CBS, DISM & Panther Log Archives](#cbs-logs)
   - [Purge Obsolete OEM Drivers](#driverstore-cleanup)
   - [Reset & Compact Windows Search Database](#search-index)
 - [2. Browser, Media & Game Caches](#app-caches)
-  - [Web Browsers (Chrome, Edge, Brave)](#browser-caches)
-  - [Media & Chat Apps (Spotify, Discord)](#media-caches)
-  - [Game Launchers (Steam, Epic, Ubisoft, Riot)](#game-caches)
+  - [Hardware GPU Shader Caches (NVIDIA & AMD)](#gpu-shader-caches)
+  - [Web Browsers (Chrome, Firefox, Brave)](#browser-caches)
+  - [Media & Communication Apps (Spotify, Discord, Slack, Teams, Telegram)](#media-caches)
+  - [Game Launchers (Steam, Epic Games Store)](#game-caches)
+  - [Creative Suite Caches (Adobe, DaVinci Resolve)](#creative-caches)
 - [3. Developer Caches & Package Managers](#developer-caches)
   - [Python & Pip](#python-pip)
-  - [Node.js (NPM & Yarn)](#nodejs)
+  - [Node.js (NPM, Yarn, pnpm)](#nodejs)
   - [.NET / NuGet](#dotnet-nuget)
   - [Java & Gradle](#java-gradle)
+  - [Rust & Go](#rust-go)
   - [VS Code Caches & Workspaces](#vscode-cache)
   - [Docker Prune](#docker-prune)
 - [4. WSL2 Virtual Disk Compaction](#wsl-compaction)
@@ -206,6 +259,12 @@ For users who prefer running specific commands individually:
 
 <a id="system-storage"></a>
 ### 1. System & OS-Level Storage
+
+<a id="recycle-bin"></a>
+#### Empty Windows Recycle Bin
+```powershell
+Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+```
 
 <a id="disable-hibernation"></a>
 #### Disable or Shrink Hibernation (6–16+ GB)
@@ -253,9 +312,8 @@ Delete-DeliveryOptimizationCache -Force
 Clears Explorer preview databases that can become bloated or corrupted:
 
 ```powershell
-Stop-Process -Name explorer -Force
 Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db" -Force -ErrorAction SilentlyContinue
-Start-Process explorer
+Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db" -Force -ErrorAction SilentlyContinue
 ```
 
 <a id="shadow-copies"></a>
@@ -278,23 +336,27 @@ After feature updates, previous OS rollback archives remain in `Windows.old` and
 Remove-Item -Path "C:\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "C:\$WINDOWS.~BT" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "C:\$WINDOWS.~WS" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "C:\$GetCurrent" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 <a id="crash-dumps"></a>
-#### Delete Kernel Crash Dump Files (1–16+ GB)
-When Windows experiences a BSOD, full memory crash dumps matching physical RAM size are saved to `C:\Windows\MEMORY.DMP`:
+#### Delete Crash Dump Files (1–16+ GB)
+Purges kernel memory crash dumps and user-mode application crash dumps:
 
 ```powershell
 Remove-Item -Path "C:\Windows\MEMORY.DMP" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "C:\Windows\Minidump\*" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "C:\Windows\LiveKernelReports\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:LOCALAPPDATA\CrashDumps\*" -Force -ErrorAction SilentlyContinue
 ```
 
 <a id="cbs-logs"></a>
-#### Purge CBS & DISM Log Archives (1–8+ GB)
-Windows servicing creates archived cabinet files that accumulate indefinitely in `C:\Windows\Logs\CBS`:
+#### Purge CBS, DISM & Panther Log Archives (1–8+ GB)
+Windows servicing creates archived cabinet files and upgrade logs that accumulate indefinitely:
 
 ```powershell
 Remove-Item -Path "C:\Windows\Logs\CBS\CbsPersist_*" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "C:\Windows\Panther\*" -Recurse -Force -ErrorAction SilentlyContinue
 if (Test-Path "C:\Windows\Logs\DISM\dism.log") { Clear-Content -Path "C:\Windows\Logs\DISM\dism.log" -ErrorAction SilentlyContinue }
 ```
 
@@ -322,52 +384,75 @@ Start-Service -Name WSearch -ErrorAction SilentlyContinue
 <a id="app-caches"></a>
 ### 2. Browser, Media & Game Caches
 
+<a id="gpu-shader-caches"></a>
+#### Hardware GPU Shader Caches (NVIDIA, AMD, Intel)
+```powershell
+# NVIDIA:
+Remove-Item -Path "$env:LOCALAPPDATA\NVIDIA\DXCache\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:LOCALAPPDATA\NVIDIA\GLCache\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+# AMD:
+Remove-Item -Path "$env:LOCALAPPDATA\AMD\DxCache\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:LOCALAPPDATA\AMD\GLCache\*" -Recurse -Force -ErrorAction SilentlyContinue
+```
+
 <a id="browser-caches"></a>
-#### Web Browsers (Chrome, Edge, Brave)
-Clears cached streaming assets, images, and offline website data without logging you out of accounts:
+#### Web Browsers (Chrome, Firefox, Brave)
+Clears cached streaming assets, images, and code caches across all user profiles without logging you out of accounts:
 
 ```powershell
-# Microsoft Edge:
-Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+# Google Chrome (all profiles):
+Get-Item -Path "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache\*" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-Item -Path "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-# Google Chrome:
-Remove-Item -Path "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+# Mozilla Firefox (all profiles):
+Get-Item -Path "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\*" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-# Brave Browser:
-Remove-Item -Path "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Code Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+# Brave Browser (all profiles):
+Get-Item -Path "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache\*" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-Item -Path "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 <a id="media-caches"></a>
-#### Media & Chat Apps (Spotify, Discord)
+#### Media & Communication Apps (Spotify, Discord, Slack, Teams, Telegram, Zoom)
 
 ```powershell
-# Spotify media streaming storage:
+# Spotify:
 Remove-Item -Path "$env:LOCALAPPDATA\Spotify\Storage\*" -Recurse -Force -ErrorAction SilentlyContinue
 
-# Discord media and code cache:
+# Discord:
 Remove-Item -Path "$env:APPDATA\discord\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$env:APPDATA\discord\Code Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Slack:
+Remove-Item -Path "$env:APPDATA\Slack\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+
+# Telegram Desktop:
+Remove-Item -Path "$env:APPDATA\Telegram Desktop\tdata\user_data\media_cache\*" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 <a id="game-caches"></a>
-#### Game Launchers (Steam, Epic Games, Ubisoft, Riot)
-Clears cached web views, banners, and diagnostic logs without touching game installations or save files:
+#### Game Launchers (Steam, Epic Games Store)
+Clears cached web views, banners, and network caches without touching game installations or save files:
 
 ```powershell
 # Steam HTTP & web cache:
 Remove-Item -Path "C:\Program Files (x86)\Steam\appcache\httpcache\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:LOCALAPPDATA\Steam\htmlcache\*" -Recurse -Force -ErrorAction SilentlyContinue
 
-# Epic Games Launcher web cache:
+# Epic Games Store web cache:
 Remove-Item -Path "$env:LOCALAPPDATA\EpicGamesLauncher\Saved\webcache*\*" -Recurse -Force -ErrorAction SilentlyContinue
+```
 
-# Ubisoft Connect cache:
-Remove-Item -Path "$env:LOCALAPPDATA\Ubisoft Game Launcher\cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+<a id="creative-caches"></a>
+#### Creative Suite Caches (Adobe & DaVinci Resolve)
+```powershell
+# Adobe Premiere / After Effects conformed media cache:
+Remove-Item -Path "$env:APPDATA\Adobe\Common\Media Cache Files\*" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:APPDATA\Adobe\Common\Media Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
 
-# Riot Games / Valorant client logs:
-Remove-Item -Path "$env:LOCALAPPDATA\Riot Games\Riot Client\Logs\*" -Recurse -Force -ErrorAction SilentlyContinue
+# DaVinci Resolve render cache:
+Remove-Item -Path "$env:USERPROFILE\Videos\CacheClip\*" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 ---
@@ -379,24 +464,16 @@ Remove-Item -Path "$env:LOCALAPPDATA\Riot Games\Riot Client\Logs\*" -Recurse -Fo
 #### Python & Pip
 
 ```powershell
-# Purge pip wheel download cache:
 pip cache purge
-
-# Optional: clean current environment packages:
-pip freeze > packages_to_remove.txt
-pip uninstall -y -r packages_to_remove.txt
-Remove-Item packages_to_remove.txt
 ```
 
 <a id="nodejs"></a>
-#### Node.js (NPM & Yarn)
+#### Node.js (NPM, Yarn, pnpm)
 
 ```powershell
-# NPM cache:
 npm cache clean --force
-
-# Yarn cache:
 yarn cache clean
+pnpm store prune
 ```
 
 <a id="dotnet-nuget"></a>
@@ -413,6 +490,14 @@ dotnet nuget locals all --clear
 Remove-Item -Path "$env:USERPROFILE\.gradle\caches\*" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
+<a id="rust-go"></a>
+#### Rust & Go
+
+```powershell
+Remove-Item -Path "$env:USERPROFILE\.cargo\registry\cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+go clean -cache
+```
+
 <a id="vscode-cache"></a>
 #### VS Code Caches & Workspaces
 
@@ -426,7 +511,8 @@ Remove-Item -Path "$env:APPDATA\Code\User\workspaceStorage\*" -Recurse -Force -E
 #### Docker Prune
 
 ```powershell
-docker system prune -a --volumes
+docker builder prune -f
+docker system prune -f
 ```
 
 ---
@@ -463,11 +549,11 @@ To compact the virtual disk back to its actual utilized size:
 Quick one-liners to inspect storage distribution:
 
 ```powershell
-# Check free space on Drive C:
-Get-PSDrive C | Select-Object Name, @{Name="Free(GB)";Expression={[math]::Round($_.Free / 1GB, 2)}}
+# Check free space on system drive:
+Get-PSDrive $env:SystemDrive.TrimEnd(':') | Select-Object Name, @{Name="Free(GB)";Expression={[math]::Round($_.Free / 1GB, 2)}}
 
 # Inspect hidden root system files (pagefile.sys, hiberfil.sys, swapfile.sys):
-Get-Item C:\*.sys -Force -ErrorAction SilentlyContinue | Select-Object Name, @{Name="Size(GB)";Expression={[math]::Round($_.Length / 1GB, 2)}}
+Get-Item "$env:SystemDrive\*.sys" -Force -ErrorAction SilentlyContinue | Select-Object Name, @{Name="Size(GB)";Expression={[math]::Round($_.Length / 1GB, 2)}}
 
 # List top 10 largest files in your user profile:
 Get-ChildItem -Path $env:USERPROFILE -Recurse -File -ErrorAction SilentlyContinue |
@@ -484,7 +570,7 @@ To schedule an unattended monthly cleanup via Windows Task Scheduler:
 
 ```powershell
 # Run once from PowerShell as Administrator:
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File D:\Windows_Cleanup\cleanup.ps1 -All"
+$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File D:\Github\windows_cleanup\cleanup.ps1 -All"
 $Trigger = New-ScheduledTaskTrigger -Monthly -DaysOfWeek Monday -At 9am
 Register-ScheduledTask -TaskName "Monthly Windows Storage Cleanup" -Action $Action -Trigger $Trigger -User "SYSTEM"
 ```

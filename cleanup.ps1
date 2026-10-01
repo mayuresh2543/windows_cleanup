@@ -3,30 +3,51 @@
     Windows Storage Deep Cleanup Toolkit
 .DESCRIPTION
     Terminal-based system storage cleaner for Windows 10 & 11.
-    Scans and interactively purges temporary files, browser caches, game launchers,
-    shadow copies, leftover upgrade directories, crash dumps, log archives,
-    hibernation files, obsolete OEM drivers, search index databases, and WinSxS components.
+    Scans and interactively purges temporary files, individual browser caches
+    (Google Chrome, Mozilla Firefox, Brave Browser), media and chat apps,
+    individual game launchers (Steam, Epic Games Store), developer toolchain caches,
+    creative suite scratch caches, recycle bin, shadow copies, leftover upgrade directories,
+    crash dumps, log archives, hibernation files, obsolete OEM drivers,
+    search index databases, and WinSxS components.
     Targets with 0 bytes are automatically skipped.
 .PARAMETER All
     Cleans all eligible targets without interactive confirmation prompts.
 .PARAMETER DryRun
     Simulates cleanup preview without deleting files.
+.PARAMETER SkipRecycleBin
+    Skips emptying the Windows Recycle Bin.
+.PARAMETER SkipThumbnails
+    Skips purging Windows Explorer thumbnail and icon caches.
 .PARAMETER SkipBrowsers
-    Skips Edge, Chrome, and Brave browser caches.
+    Skips all supported web browser caches (Chrome, Firefox, Brave).
+.PARAMETER SkipChrome
+    Skips Google Chrome web and code caches.
+.PARAMETER SkipFirefox
+    Skips Mozilla Firefox web and startup caches.
+.PARAMETER SkipBrave
+    Skips Brave Browser web and code caches.
 .PARAMETER SkipMediaApps
-    Skips Spotify streaming and Discord media caches.
+    Skips Spotify, Discord, Slack, Microsoft Teams, Telegram, and Zoom caches.
 .PARAMETER SkipGames
-    Skips Steam, Epic Games, Ubisoft Connect, and Riot Client caches.
+    Skips all supported game launcher caches (Steam, Epic Games Store).
+.PARAMETER SkipSteam
+    Skips Steam web and HTTP caches.
+.PARAMETER SkipEpic
+    Skips Epic Games Store web cache.
+.PARAMETER SkipDevCaches
+    Skips Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, and Go caches.
+.PARAMETER SkipCreativeApps
+    Skips Adobe Common Media Cache and DaVinci Resolve render cache files.
 .PARAMETER SkipRestorePoints
     Skips purging oldest volume shadow copies.
 .PARAMETER SkipCrashDumps
-    Skips purging MEMORY.DMP and minidump files.
+    Skips purging MEMORY.DMP, Minidump, LiveKernelReports, and user-mode CrashDumps.
 .PARAMETER SkipUpgradeFolders
-    Skips purging Windows.old and $WINDOWS.~BT folders.
+    Skips purging Windows.old, $WINDOWS.~BT, $WINDOWS.~WS, and $GetCurrent folders.
 .PARAMETER SkipCBSLogs
-    Skips purging CBS persist archives and clearing DISM logs.
+    Skips purging CBS persist archives, Panther logs, and clearing DISM logs.
 .PARAMETER SkipHiberfil
-    Skips disabling hibernation and deleting C:\hiberfil.sys.
+    Skips disabling hibernation and deleting hiberfil.sys.
 .PARAMETER SkipDrivers
     Skips purging superseded OEM drivers via pnputil.
 .PARAMETER SkipSearchIndex
@@ -39,15 +60,26 @@
     .\cleanup.ps1 -All
 .EXAMPLE
     .\cleanup.ps1 -DryRun
+.EXAMPLE
+    .\cleanup.ps1 -All -SkipRestorePoints -SkipDrivers
 #>
 
 [CmdletBinding()]
 param(
     [switch]$All,
     [switch]$DryRun,
+    [switch]$SkipRecycleBin,
+    [switch]$SkipThumbnails,
     [switch]$SkipBrowsers,
+    [switch]$SkipChrome,
+    [switch]$SkipFirefox,
+    [switch]$SkipBrave,
     [switch]$SkipMediaApps,
     [switch]$SkipGames,
+    [switch]$SkipSteam,
+    [switch]$SkipEpic,
+    [switch]$SkipDevCaches,
+    [switch]$SkipCreativeApps,
     [switch]$SkipRestorePoints,
     [switch]$SkipCrashDumps,
     [switch]$SkipUpgradeFolders,
@@ -59,6 +91,11 @@ param(
 )
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+# Dynamic system drive resolution
+$sysDrive = if ($env:SystemDrive) { $env:SystemDrive } else { "C:" }
+$sysDriveLetter = $sysDrive.TrimEnd(':')
+$sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { "$sysDrive\Windows" }
 
 # Disable console QuickEdit mode to prevent process pause on mouse click
 try {
@@ -87,7 +124,7 @@ if (-not $isAdmin) {
     Write-Host ""
 }
 
-$initialFreeBytes = (Get-PSDrive C).Free
+$initialFreeBytes = (Get-PSDrive $sysDriveLetter).Free
 $initialFreeGB = [math]::Round($initialFreeBytes / 1GB, 2)
 
 Clear-Host
@@ -100,7 +137,7 @@ if ($DryRun) {
     Write-Host "  [MODE: DRY RUN] Preview simulation active - no files will be deleted. " -ForegroundColor Magenta
     Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
 }
-Write-Host "  Target Volume       : Drive C:" -ForegroundColor Gray
+Write-Host "  Target Volume       : Drive $sysDrive" -ForegroundColor Gray
 Write-Host "  Initial Free Space  : $initialFreeGB GB" -ForegroundColor White
 Write-Host "========================================================================" -ForegroundColor DarkCyan
 Write-Host ""
@@ -123,21 +160,37 @@ function Get-FolderMetrics {
     $totalBytes = [int64]0
     $fileCount = 0
     foreach ($p in $Paths) {
-        if (-not (Test-Path -LiteralPath $p -ErrorAction SilentlyContinue)) { continue }
-        try {
-            $item = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
-            if ($item.PSIsContainer) {
-                $measure = Get-ChildItem -LiteralPath $p -Recurse -File -Force -ErrorAction SilentlyContinue |
-                    Measure-Object -Property Length -Sum
-                if ($measure -and $measure.Sum) {
-                    $totalBytes += $measure.Sum
-                    $fileCount += $measure.Count
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        $resolvedPaths = @()
+        if ($p -match '[\*\?]') {
+            try {
+                $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
+                if ($found) {
+                    $resolvedPaths = @($found | Select-Object -ExpandProperty FullName)
                 }
-            } else {
-                $totalBytes += $item.Length
-                $fileCount++
+            } catch { }
+        } else {
+            if (Test-Path -LiteralPath $p -ErrorAction SilentlyContinue) {
+                $resolvedPaths = @($p)
             }
-        } catch { }
+        }
+
+        foreach ($rp in $resolvedPaths) {
+            try {
+                $item = Get-Item -LiteralPath $rp -Force -ErrorAction SilentlyContinue
+                if ($item.PSIsContainer) {
+                    $measure = Get-ChildItem -LiteralPath $rp -Recurse -File -Force -ErrorAction SilentlyContinue |
+                        Measure-Object -Property Length -Sum
+                    if ($measure -and $measure.Sum) {
+                        $totalBytes += $measure.Sum
+                        $fileCount += $measure.Count
+                    }
+                } else {
+                    $totalBytes += $item.Length
+                    $fileCount++
+                }
+            } catch { }
+        }
     }
     return [PSCustomObject]@{
         Bytes     = $totalBytes
@@ -191,45 +244,94 @@ function Write-SkippedChoice {
 Write-Host " [CONFIG] Select cleanup targets (Press Enter to accept default):" -ForegroundColor Cyan
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
 
-# 01. Temp files
-$tempMetrics = Get-FolderMetrics @($env:TEMP, "C:\Windows\Temp")
+# 01. Temp files & Service Profiles
+$tempPaths = @(
+    $env:TEMP,
+    "$sysRoot\Temp",
+    "$sysRoot\ServiceProfiles\NetworkService\AppData\Local\Temp",
+    "$sysRoot\ServiceProfiles\LocalService\AppData\Local\Temp"
+)
+$tempMetrics = Get-FolderMetrics $tempPaths
 if ($tempMetrics.Bytes -gt 0) {
-    $doTemp = Ask-Choice 1 "User & Windows Temp Directories" "Found $($tempMetrics.Formatted) disposable temporary caches in %TEMP% and C:\Windows\Temp" $true
+    $doTemp = Ask-Choice 1 "User & Windows Temp Directories" "Found $($tempMetrics.Formatted) disposable temporary caches in %TEMP% and $sysRoot\Temp" $true
 } else {
     $doTemp = $false
     Write-SkippedChoice 1 "User & Windows Temp Directories" "None found / 0 B (Clean)"
 }
 
-# 02. Shaders & WER
+# 02. Shaders (DirectX, NVIDIA, AMD, Intel) & WER Logs
 $shaderPaths = @(
     "$env:LOCALAPPDATA\D3DSCache",
     "$env:LOCALAPPDATA\Microsoft\DirectX Shader Cache",
+    "$env:LOCALAPPDATA\NVIDIA\DXCache",
+    "$env:LOCALAPPDATA\NVIDIA\GLCache",
+    "$env:APPDATA\NVIDIA\ComputeCache",
+    "$env:LOCALAPPDATA\AMD\DxCache",
+    "$env:LOCALAPPDATA\AMD\GLCache",
+    "$env:LOCALAPPDATA\AMD\OglShaders",
+    "$env:LOCALAPPDATA\Intel\ShaderCache",
     "$env:PROGRAMDATA\Microsoft\Windows\WER\ReportArchive",
+    "$env:PROGRAMDATA\Microsoft\Windows\WER\ReportQueue",
+    "$env:PROGRAMDATA\Microsoft\Windows\WER\Temp",
     "$env:LOCALAPPDATA\Microsoft\Windows\WER\ReportArchive"
 )
 $shaderMetrics = Get-FolderMetrics $shaderPaths
 if ($shaderMetrics.Bytes -gt 0) {
-    $doShaders = Ask-Choice 2 "DirectX Shader Cache & Error Reporting Logs" "Found $($shaderMetrics.Formatted) shaders and WER report archives" $true
+    $doShaders = Ask-Choice 2 "DirectX, GPU Shaders & Error Reporting Logs" "Found $($shaderMetrics.Formatted) shaders (DirectX, NVIDIA, AMD, Intel) and WER archives" $true
 } else {
     $doShaders = $false
-    Write-SkippedChoice 2 "DirectX Shader Cache & Error Reporting Logs" "None found / 0 B (Clean)"
+    Write-SkippedChoice 2 "DirectX, GPU Shaders & Error Reporting Logs" "None found / 0 B (Clean)"
 }
 
-# 03. Windows Update Store
+# 03. Windows Recycle Bin
+if (-not $SkipRecycleBin) {
+    $recyclePaths = @("$sysDrive\`$Recycle.Bin")
+    $recycleMetrics = Get-FolderMetrics $recyclePaths
+    if ($recycleMetrics.Bytes -gt 0) {
+        $doRecycleBin = Ask-Choice 3 "Windows Recycle Bin" "Found $($recycleMetrics.Formatted) discarded files across drive bins" $true
+    } else {
+        $doRecycleBin = $false
+        Write-SkippedChoice 3 "Windows Recycle Bin" "None found / 0 B (Clean)"
+    }
+} else {
+    $doRecycleBin = $false
+    Write-SkippedChoice 3 "Windows Recycle Bin" "Skipped (-SkipRecycleBin flag passed)"
+}
+
+# 04. Windows Explorer Thumbnail & Icon Caches
+if (-not $SkipThumbnails) {
+    $thumbPaths = @(
+        "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db",
+        "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db",
+        "$env:LOCALAPPDATA\IconCache.db"
+    )
+    $thumbMetrics = Get-FolderMetrics $thumbPaths
+    if ($thumbMetrics.Bytes -gt 0) {
+        $doThumbnails = Ask-Choice 4 "Explorer Thumbnail & Icon Caches" "Found $($thumbMetrics.Formatted) cached Explorer thumbnail databases (thumbcache_*.db)" $true
+    } else {
+        $doThumbnails = $false
+        Write-SkippedChoice 4 "Explorer Thumbnail & Icon Caches" "None found / 0 B (Clean)"
+    }
+} else {
+    $doThumbnails = $false
+    Write-SkippedChoice 4 "Explorer Thumbnail & Icon Caches" "Skipped (-SkipThumbnails flag passed)"
+}
+
+# 05. Windows Update Store
 if ($isAdmin) {
-    $updateMetrics = Get-FolderMetrics @("C:\Windows\SoftwareDistribution\Download")
+    $updateMetrics = Get-FolderMetrics @("$sysRoot\SoftwareDistribution\Download")
     if ($updateMetrics.Bytes -gt 0) {
-        $doUpdates = Ask-Choice 3 "Windows Update Download Store" "Found $($updateMetrics.Formatted) staged packages in SoftwareDistribution\Download" $true
+        $doUpdates = Ask-Choice 5 "Windows Update Download Store" "Found $($updateMetrics.Formatted) staged packages in SoftwareDistribution\Download" $true
     } else {
         $doUpdates = $false
-        Write-SkippedChoice 3 "Windows Update Download Store" "None found / 0 B (Clean)"
+        Write-SkippedChoice 5 "Windows Update Download Store" "None found / 0 B (Clean)"
     }
 } else {
     $doUpdates = $false
-    Write-SkippedChoice 3 "Windows Update Download Store" "Skipped (Requires Administrator privileges)"
+    Write-SkippedChoice 5 "Windows Update Download Store" "Skipped (Requires Administrator privileges)"
 }
 
-# 04. Delivery Optimization
+# 06. Delivery Optimization
 if (Get-Command Delete-DeliveryOptimizationCache -ErrorAction SilentlyContinue) {
     $doBytes = [int64]0
     if (Get-Command Get-DeliveryOptimizationStatus -ErrorAction SilentlyContinue) {
@@ -241,196 +343,295 @@ if (Get-Command Delete-DeliveryOptimizationCache -ErrorAction SilentlyContinue) 
             }
         } catch { }
     }
-    $doFolderMetrics = Get-FolderMetrics @("C:\Windows\ServiceState\DeliveryOptimization", "C:\ProgramData\Microsoft\Network\Downloader")
+    $doFolderMetrics = Get-FolderMetrics @("$sysRoot\ServiceState\DeliveryOptimization", "$env:ProgramData\Microsoft\Network\Downloader")
     $totalDoBytes = $doBytes + $doFolderMetrics.Bytes
     if ($totalDoBytes -gt 0) {
-        $doDelivery = Ask-Choice 4 "Windows Delivery Optimization Cache" "Found $(Format-ByteSize $totalDoBytes) peer-to-peer Windows update distribution files" $true
+        $doDelivery = Ask-Choice 6 "Windows Delivery Optimization Cache" "Found $(Format-ByteSize $totalDoBytes) peer-to-peer Windows update distribution files" $true
     } else {
         $doDelivery = $false
-        Write-SkippedChoice 4 "Windows Delivery Optimization Cache" "None found / 0 B (Clean)"
+        Write-SkippedChoice 6 "Windows Delivery Optimization Cache" "None found / 0 B (Clean)"
     }
 } else {
     $doDelivery = $false
-    Write-SkippedChoice 4 "Windows Delivery Optimization Cache" "Skipped (Cmdlet not available)"
+    Write-SkippedChoice 6 "Windows Delivery Optimization Cache" "Skipped (Cmdlet not available)"
 }
 
-# 05. Browsers
-if (-not $SkipBrowsers) {
-    $browserPaths = @(
-        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
-        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache",
-        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
-        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache",
-        "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache",
-        "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Code Cache"
-    )
-    $browserMetrics = Get-FolderMetrics $browserPaths
-    if ($browserMetrics.Bytes -gt 0) {
-        $doBrowsers = Ask-Choice 5 "Web Browser Caches (Edge, Chrome, Brave)" "Found $($browserMetrics.Formatted) cached web assets and code caches" $true
+# 07. Google Chrome
+$chromePaths = @(
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache",
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache",
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\*\GPUCache",
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Service Worker\CacheStorage"
+)
+if (-not ($SkipBrowsers -or $SkipChrome)) {
+    $chromeMetrics = Get-FolderMetrics $chromePaths
+    if ($chromeMetrics.Bytes -gt 0) {
+        $doChrome = Ask-Choice 7 "Google Chrome Web & Code Cache" "Found $($chromeMetrics.Formatted) cached web assets and compiled code caches across profiles" $true
     } else {
-        $doBrowsers = $false
-        Write-SkippedChoice 5 "Web Browser Caches (Edge, Chrome, Brave)" "None found / 0 B (Clean)"
+        $doChrome = $false
+        Write-SkippedChoice 7 "Google Chrome Web & Code Cache" "None found / 0 B (Clean)"
     }
 } else {
-    $doBrowsers = $false
-    Write-SkippedChoice 5 "Web Browser Caches" "Skipped (-SkipBrowsers flag passed)"
+    $doChrome = $false
+    Write-SkippedChoice 7 "Google Chrome Web & Code Cache" "Skipped (-SkipChrome or -SkipBrowsers flag passed)"
 }
 
-# 06. Media Apps
+# 08. Mozilla Firefox
+$firefoxPaths = @(
+    "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2",
+    "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\startupCache"
+)
+if (-not ($SkipBrowsers -or $SkipFirefox)) {
+    $firefoxMetrics = Get-FolderMetrics $firefoxPaths
+    if ($firefoxMetrics.Bytes -gt 0) {
+        $doFirefox = Ask-Choice 8 "Mozilla Firefox Web & Startup Cache" "Found $($firefoxMetrics.Formatted) offline cache2 files and startup cache across profiles" $true
+    } else {
+        $doFirefox = $false
+        Write-SkippedChoice 8 "Mozilla Firefox Web & Startup Cache" "None found / 0 B (Clean)"
+    }
+} else {
+    $doFirefox = $false
+    Write-SkippedChoice 8 "Mozilla Firefox Web & Startup Cache" "Skipped (-SkipFirefox or -SkipBrowsers flag passed)"
+}
+
+# 09. Brave Browser
+$bravePaths = @(
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\GPUCache",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Service Worker\CacheStorage"
+)
+if (-not ($SkipBrowsers -or $SkipBrave)) {
+    $braveMetrics = Get-FolderMetrics $bravePaths
+    if ($braveMetrics.Bytes -gt 0) {
+        $doBrave = Ask-Choice 9 "Brave Browser Web & Code Cache" "Found $($braveMetrics.Formatted) cached web assets and compiled code caches across profiles" $true
+    } else {
+        $doBrave = $false
+        Write-SkippedChoice 9 "Brave Browser Web & Code Cache" "None found / 0 B (Clean)"
+    }
+} else {
+    $doBrave = $false
+    Write-SkippedChoice 9 "Brave Browser Web & Code Cache" "Skipped (-SkipBrave or -SkipBrowsers flag passed)"
+}
+
+# 10. Media & Communication Apps (Spotify, Discord, Slack, Teams, Telegram, Zoom)
 if (-not $SkipMediaApps) {
     $mediaPaths = @(
         "$env:LOCALAPPDATA\Spotify\Storage",
         "$env:APPDATA\discord\Cache",
-        "$env:APPDATA\discord\Code Cache"
+        "$env:APPDATA\discord\Code Cache",
+        "$env:APPDATA\Slack\Cache",
+        "$env:APPDATA\Slack\Code Cache",
+        "$env:APPDATA\Slack\Service Worker\CacheStorage",
+        "$env:LOCALAPPDATA\Packages\MSTeams_8wekyb3d8bbwe\LocalCache",
+        "$env:APPDATA\Microsoft\Teams\Cache",
+        "$env:APPDATA\Microsoft\Teams\blob_storage",
+        "$env:APPDATA\Microsoft\Teams\tmp",
+        "$env:APPDATA\Telegram Desktop\tdata\user_data\media_cache",
+        "$env:APPDATA\Zoom\data",
+        "$env:LOCALAPPDATA\Zoom\temp"
     )
     $mediaMetrics = Get-FolderMetrics $mediaPaths
     if ($mediaMetrics.Bytes -gt 0) {
-        $doMedia = Ask-Choice 6 "Spotify & Discord Media Caches" "Found $($mediaMetrics.Formatted) streaming songs and media/code caches" $true
+        $doMedia = Ask-Choice 10 "Media & Chat Caches (Spotify, Discord, Slack, Teams, Telegram, Zoom)" "Found $($mediaMetrics.Formatted) streaming audio, chat media, and code caches" $true
     } else {
         $doMedia = $false
-        Write-SkippedChoice 6 "Spotify & Discord Media Caches" "None found / 0 B (Clean)"
+        Write-SkippedChoice 10 "Media & Chat Caches" "None found / 0 B (Clean)"
     }
 } else {
     $doMedia = $false
-    Write-SkippedChoice 6 "Spotify & Discord Media Caches" "Skipped (-SkipMediaApps flag passed)"
+    Write-SkippedChoice 10 "Media & Chat Caches" "Skipped (-SkipMediaApps flag passed)"
 }
 
-# 07. Games
-if (-not $SkipGames) {
-    $gamePaths = @(
-        "$env:LOCALAPPDATA\Steam\htmlcache",
-        "C:\Program Files (x86)\Steam\appcache\httpcache",
-        "$env:LOCALAPPDATA\EpicGamesLauncher\Saved\webcache",
-        "$env:LOCALAPPDATA\Ubisoft Game Launcher\cache",
-        "$env:LOCALAPPDATA\Riot Games\Riot Client\Data\Logs"
-    )
-    $gameMetrics = Get-FolderMetrics $gamePaths
-    if ($gameMetrics.Bytes -gt 0) {
-        $doGames = Ask-Choice 7 "Game Launcher Caches (Steam, Epic, Ubisoft, Riot)" "Found $($gameMetrics.Formatted) launcher web/http caches and diagnostic logs" $true
+# 11. Steam Web & HTTP Cache
+$steamPaths = @(
+    "$env:LOCALAPPDATA\Steam\htmlcache",
+    "${env:ProgramFiles(x86)}\Steam\appcache\httpcache"
+)
+if (-not ($SkipGames -or $SkipSteam)) {
+    $steamMetrics = Get-FolderMetrics $steamPaths
+    if ($steamMetrics.Bytes -gt 0) {
+        $doSteam = Ask-Choice 11 "Steam Web & HTTP Cache" "Found $($steamMetrics.Formatted) launcher browser and HTTP network cache files" $true
     } else {
-        $doGames = $false
-        Write-SkippedChoice 7 "Game Launcher Caches (Steam, Epic, Ubisoft, Riot)" "None found / 0 B (Clean)"
+        $doSteam = $false
+        Write-SkippedChoice 11 "Steam Web & HTTP Cache" "None found / 0 B (Clean)"
     }
 } else {
-    $doGames = $false
-    Write-SkippedChoice 7 "Game Launcher Caches" "Skipped (-SkipGames flag passed)"
+    $doSteam = $false
+    Write-SkippedChoice 11 "Steam Web & HTTP Cache" "Skipped (-SkipSteam or -SkipGames flag passed)"
 }
 
-# 08. Dev caches
-$devPaths = @(
-    "$env:LOCALAPPDATA\pip\cache",
-    "$env:APPDATA\Code\Cache",
-    "$env:APPDATA\Code\CachedData"
+# 12. Epic Games Store Web Cache
+$epicPaths = @(
+    "$env:LOCALAPPDATA\EpicGamesLauncher\Saved\webcache*"
 )
-$devMetrics = Get-FolderMetrics $devPaths
-if ($devMetrics.Bytes -gt 0) {
-    $doDev = Ask-Choice 8 "Developer Caches (Python pip & VS Code)" "Found $($devMetrics.Formatted) cached pip download wheels and VS Code editor caches" $true
+if (-not ($SkipGames -or $SkipEpic)) {
+    $epicMetrics = Get-FolderMetrics $epicPaths
+    if ($epicMetrics.Bytes -gt 0) {
+        $doEpic = Ask-Choice 12 "Epic Games Store Web Cache" "Found $($epicMetrics.Formatted) store webcache assets and browser caches" $true
+    } else {
+        $doEpic = $false
+        Write-SkippedChoice 12 "Epic Games Store Web Cache" "None found / 0 B (Clean)"
+    }
+} else {
+    $doEpic = $false
+    Write-SkippedChoice 12 "Epic Games Store Web Cache" "Skipped (-SkipEpic or -SkipGames flag passed)"
+}
+
+# 13. Developer Toolchain Caches (Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, Go)
+if (-not $SkipDevCaches) {
+    $devPaths = @(
+        "$env:LOCALAPPDATA\pip\cache",
+        "$env:APPDATA\Code\Cache",
+        "$env:APPDATA\Code\CachedData",
+        "$env:LOCALAPPDATA\npm-cache",
+        "$env:APPDATA\npm-cache",
+        "$env:LOCALAPPDATA\Yarn\Cache",
+        "$env:LOCALAPPDATA\pnpm\store",
+        "$env:LOCALAPPDATA\NuGet\v3-cache",
+        "$env:USERPROFILE\.gradle\caches",
+        "$env:USERPROFILE\.cargo\registry\cache",
+        "$env:LOCALAPPDATA\go-build"
+    )
+    $devMetrics = Get-FolderMetrics $devPaths
+    if ($devMetrics.Bytes -gt 0) {
+        $doDev = Ask-Choice 13 "Developer Toolchain Caches (Pip, VS Code, NPM, Yarn, NuGet, Gradle, Cargo, Go)" "Found $($devMetrics.Formatted) package download wheels and build cache artifacts" $true
+    } else {
+        $doDev = $false
+        Write-SkippedChoice 13 "Developer Toolchain Caches" "None found / 0 B (Clean)"
+    }
 } else {
     $doDev = $false
-    Write-SkippedChoice 8 "Developer Caches (Python pip & VS Code)" "None found / 0 B (Clean)"
+    Write-SkippedChoice 13 "Developer Toolchain Caches" "Skipped (-SkipDevCaches flag passed)"
 }
 
-# 09. Volume Shadow Copies
+# 14. Creative Suite Media Caches (Adobe & DaVinci Resolve)
+if (-not $SkipCreativeApps) {
+    $creativePaths = @(
+        "$env:APPDATA\Adobe\Common\Media Cache Files",
+        "$env:APPDATA\Adobe\Common\Media Cache",
+        "$env:USERPROFILE\Videos\CacheClip"
+    )
+    $creativeMetrics = Get-FolderMetrics $creativePaths
+    if ($creativeMetrics.Bytes -gt 0) {
+        $doCreative = Ask-Choice 14 "Creative Suite Media Caches (Adobe & DaVinci Resolve)" "Found $($creativeMetrics.Formatted) conformed audio peaks and video scratch renders" $true
+    } else {
+        $doCreative = $false
+        Write-SkippedChoice 14 "Creative Suite Media Caches" "None found / 0 B (Clean)"
+    }
+} else {
+    $doCreative = $false
+    Write-SkippedChoice 14 "Creative Suite Media Caches" "Skipped (-SkipCreativeApps flag passed)"
+}
+
+# 15. Volume Shadow Copies
 if ($isAdmin -and (-not $SkipRestorePoints)) {
     $shadowOutput = vssadmin list shadows 2>&1
     $hasShadows = ($shadowOutput -match 'Shadow Copy ID:')
     if ($hasShadows) {
         $shadowCount = ($shadowOutput | Select-String 'Shadow Copy ID:').Count
-        $doShadows = Ask-Choice 9 "Oldest Volume Shadow Copies (vssadmin)" "Found $shadowCount shadow copies. Purges old snapshots via vssadmin, keeps newest" $true
+        $doShadows = Ask-Choice 15 "Oldest Volume Shadow Copies (vssadmin)" "Found $shadowCount shadow copies. Purges old snapshots via vssadmin, keeps newest" $true
     } else {
         $doShadows = $false
-        Write-SkippedChoice 9 "Oldest Volume Shadow Copies (vssadmin)" "None found / 0 copies (Clean)"
+        Write-SkippedChoice 15 "Oldest Volume Shadow Copies (vssadmin)" "None found / 0 copies (Clean)"
     }
 } else {
     $doShadows = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 9 "System Restore Points" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 15 "System Restore Points" "Skipped (Requires Administrator privileges)"
     } else {
-        Write-SkippedChoice 9 "System Restore Points" "Skipped (-SkipRestorePoints flag passed)"
+        Write-SkippedChoice 15 "System Restore Points" "Skipped (-SkipRestorePoints flag passed)"
     }
 }
 
-# 10. Leftover Windows Upgrade Folders
-$upgradePaths = @("C:\Windows.old", "C:\$WINDOWS.~BT", "C:\$WINDOWS.~WS")
+# 16. Leftover Windows Upgrade Folders
+$upgradePaths = @("$sysDrive\Windows.old", "$sysDrive\`$WINDOWS.~BT", "$sysDrive\`$WINDOWS.~WS", "$sysDrive\`$GetCurrent")
 $foundUpgradePaths = @($upgradePaths | Where-Object { Test-Path -LiteralPath $_ })
 $upgradeMetrics = if ($foundUpgradePaths.Count -gt 0) { Get-FolderMetrics $foundUpgradePaths } else { [PSCustomObject]@{ Bytes = [int64]0; Formatted = "0 B" } }
 if ($foundUpgradePaths.Count -gt 0 -and $upgradeMetrics.Bytes -gt 0 -and (-not $SkipUpgradeFolders)) {
     $foundList = $foundUpgradePaths -join ", "
-    $doUpgrade = Ask-Choice 10 "Leftover Windows Upgrade Folders" "Found $($upgradeMetrics.Formatted) across: $foundList" $true
+    $doUpgrade = Ask-Choice 16 "Leftover Windows Upgrade Folders" "Found $($upgradeMetrics.Formatted) across: $foundList" $true
 } else {
     $doUpgrade = $false
     if ($SkipUpgradeFolders) {
-        Write-SkippedChoice 10 "Leftover Windows Upgrade Folders" "Skipped (-SkipUpgradeFolders flag passed)"
+        Write-SkippedChoice 16 "Leftover Windows Upgrade Folders" "Skipped (-SkipUpgradeFolders flag passed)"
     } else {
-        Write-SkippedChoice 10 "Leftover Windows Upgrade Folders" "None found / 0 B (Clean)"
+        Write-SkippedChoice 16 "Leftover Windows Upgrade Folders" "None found / 0 B (Clean)"
     }
 }
 
-# 11. Crash dumps
-$crashPaths = @("C:\Windows\MEMORY.DMP", "C:\Windows\Minidump")
+# 17. Kernel & User Crash Dumps
+$crashPaths = @(
+    "$sysRoot\MEMORY.DMP",
+    "$sysRoot\Minidump",
+    "$sysRoot\LiveKernelReports",
+    "$env:LOCALAPPDATA\CrashDumps"
+)
 $crashMetrics = Get-FolderMetrics $crashPaths
 if ($crashMetrics.Bytes -gt 0 -and (-not $SkipCrashDumps)) {
-    $doCrashDumps = Ask-Choice 11 "Kernel Crash Dump Files (MEMORY.DMP)" "Found $($crashMetrics.Formatted) in crash dump files" $true
+    $doCrashDumps = Ask-Choice 17 "Kernel & User Crash Dump Files" "Found $($crashMetrics.Formatted) in crash dump files (MEMORY.DMP, CrashDumps)" $true
 } else {
     $doCrashDumps = $false
     if ($SkipCrashDumps) {
-        Write-SkippedChoice 11 "Kernel Crash Dump Files" "Skipped (-SkipCrashDumps flag passed)"
+        Write-SkippedChoice 17 "Kernel & User Crash Dump Files" "Skipped (-SkipCrashDumps flag passed)"
     } else {
-        Write-SkippedChoice 11 "Kernel Crash Dump Files (MEMORY.DMP)" "None found / 0 B (Clean)"
+        Write-SkippedChoice 17 "Kernel & User Crash Dump Files" "None found / 0 B (Clean)"
     }
 }
 
-# 12. CBS & DISM Logs
+# 18. CBS, DISM & Panther Logs
 if ($isAdmin -and (-not $SkipCBSLogs)) {
-    $cbsFiles = @(Get-ChildItem -Path "C:\Windows\Logs\CBS" -Filter "CbsPersist_*" -ErrorAction SilentlyContinue)
-    $cbsLogBytes = [int64]0
-    if ($cbsFiles.Count -gt 0) {
-        $sum = ($cbsFiles | Measure-Object -Property Length -Sum).Sum
-        if ($sum) { $cbsLogBytes += $sum }
-    }
-    if (Test-Path -LiteralPath "C:\Windows\Logs\DISM\dism.log") {
-        try { $cbsLogBytes += (Get-Item -LiteralPath "C:\Windows\Logs\DISM\dism.log" -Force -ErrorAction SilentlyContinue).Length } catch { }
+    $cbsPaths = @(
+        "$sysRoot\Logs\CBS\CbsPersist_*",
+        "$sysRoot\Panther",
+        "$env:ProgramData\Microsoft\Diagnosis\ETLLogs\*.etl"
+    )
+    $cbsFolderMetrics = Get-FolderMetrics $cbsPaths
+    $cbsLogBytes = $cbsFolderMetrics.Bytes
+    if (Test-Path -LiteralPath "$sysRoot\Logs\DISM\dism.log") {
+        try { $cbsLogBytes += (Get-Item -LiteralPath "$sysRoot\Logs\DISM\dism.log" -Force -ErrorAction SilentlyContinue).Length } catch { }
     }
     if ($cbsLogBytes -gt 0) {
         $cbsFormatted = Format-ByteSize $cbsLogBytes
-        $doCBSLogs = Ask-Choice 12 "CBS & DISM Log Archives" "Found $cbsFormatted in CBS persist archives and DISM logs" $true
+        $doCBSLogs = Ask-Choice 18 "CBS, DISM & Panther Log Archives" "Found $cbsFormatted in CBS persist archives, Panther logs, and DISM traces" $true
     } else {
         $doCBSLogs = $false
-        Write-SkippedChoice 12 "CBS & DISM Log Archives" "None found / 0 B (Clean)"
+        Write-SkippedChoice 18 "CBS, DISM & Panther Log Archives" "None found / 0 B (Clean)"
     }
 } else {
     $doCBSLogs = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 12 "CBS & DISM Log Archives" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 18 "CBS, DISM & Panther Log Archives" "Skipped (Requires Administrator privileges)"
     } else {
-        Write-SkippedChoice 12 "CBS & DISM Log Archives" "Skipped (-SkipCBSLogs flag passed)"
+        Write-SkippedChoice 18 "CBS, DISM & Panther Log Archives" "Skipped (-SkipCBSLogs flag passed)"
     }
 }
 
-# 13. Hibernation file
-$hasHiberfil = Test-Path -LiteralPath "C:\hiberfil.sys"
+# 19. Hibernation file
+$hiberPath = "$sysDrive\hiberfil.sys"
+$hasHiberfil = Test-Path -LiteralPath $hiberPath
 if ($isAdmin -and (-not $SkipHiberfil)) {
     $hiberSize = [int64]0
     if ($hasHiberfil) {
-        try { $hiberSize = (Get-Item -LiteralPath "C:\hiberfil.sys" -Force -ErrorAction Stop).Length } catch { }
+        try { $hiberSize = (Get-Item -LiteralPath $hiberPath -Force -ErrorAction Stop).Length } catch { }
     }
     if ($hasHiberfil -and $hiberSize -gt 0) {
         $hiberFormatted = Format-ByteSize $hiberSize
-        $doHiberfil = Ask-Choice 13 "Windows Hibernation File (hiberfil.sys)" "Found C:\hiberfil.sys ($hiberFormatted). Disables Hibernate to reclaim space (Sleep unaffected)" $true
+        $doHiberfil = Ask-Choice 19 "Windows Hibernation File (hiberfil.sys)" "Found $hiberPath ($hiberFormatted). Disables Hibernate to reclaim space (Sleep unaffected)" $true
     } else {
         $doHiberfil = $false
-        Write-SkippedChoice 13 "Windows Hibernation (hiberfil.sys)" "Already disabled / None found (Clean)"
+        Write-SkippedChoice 19 "Windows Hibernation (hiberfil.sys)" "Already disabled / None found (Clean)"
     }
 } else {
     $doHiberfil = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 13 "Windows Hibernation (hiberfil.sys)" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 19 "Windows Hibernation (hiberfil.sys)" "Skipped (Requires Administrator privileges)"
     } else {
-        Write-SkippedChoice 13 "Windows Hibernation (hiberfil.sys)" "Skipped (-SkipHiberfil flag passed)"
+        Write-SkippedChoice 19 "Windows Hibernation (hiberfil.sys)" "Skipped (-SkipHiberfil flag passed)"
     }
 }
 
-# 14. Obsolete OEM drivers
+# 20. Obsolete OEM drivers
 $supersededDrivers = @()
 if ($isAdmin -and (-not $SkipDrivers)) {
     $rawDrivers = pnputil /enum-drivers 2>&1
@@ -461,54 +662,54 @@ if ($isAdmin -and (-not $SkipDrivers)) {
         }
     }
     if ($supersededDrivers.Count -gt 0) {
-        $doDrivers = Ask-Choice 14 "Obsolete OEM Hardware Drivers" "Found $($supersededDrivers.Count) superseded driver packages in DriverStore" $true
+        $doDrivers = Ask-Choice 20 "Obsolete OEM Hardware Drivers" "Found $($supersededDrivers.Count) superseded driver packages in DriverStore" $true
     } else {
         $doDrivers = $false
-        Write-SkippedChoice 14 "Obsolete OEM Hardware Drivers" "None found / 0 drivers (Clean)"
+        Write-SkippedChoice 20 "Obsolete OEM Hardware Drivers" "None found / 0 drivers (Clean)"
     }
 } else {
     $doDrivers = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 14 "Obsolete OEM Hardware Drivers" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 20 "Obsolete OEM Hardware Drivers" "Skipped (Requires Administrator privileges)"
     } else {
-        Write-SkippedChoice 14 "Obsolete OEM Hardware Drivers" "Skipped (-SkipDrivers flag passed)"
+        Write-SkippedChoice 20 "Obsolete OEM Hardware Drivers" "Skipped (-SkipDrivers flag passed)"
     }
 }
 
-# 15. Windows Search index
+# 21. Windows Search index
 $searchService = Get-Service -Name WSearch -ErrorAction SilentlyContinue
 if ($isAdmin -and ($null -ne $searchService) -and (-not $SkipSearchIndex)) {
     $searchPaths = @(
-        "C:\ProgramData\Microsoft\Search\Data\Applications\Windows\Windows.edb",
-        "C:\ProgramData\Microsoft\Search\Data\Applications\Windows\Projects\SystemIndex\Indexer"
+        "$env:ProgramData\Microsoft\Search\Data\Applications\Windows\Windows.edb",
+        "$env:ProgramData\Microsoft\Search\Data\Applications\Windows\Projects\SystemIndex\Indexer"
     )
     $searchMetrics = Get-FolderMetrics $searchPaths
     if ($searchMetrics.Bytes -gt 0) {
-        $doSearchIndex = Ask-Choice 15 "Windows Search Index Database" "Found $($searchMetrics.Formatted) in search database (resets and compacts in background)" $true
+        $doSearchIndex = Ask-Choice 21 "Windows Search Index Database" "Found $($searchMetrics.Formatted) in search database (resets and compacts in background)" $true
     } else {
         $doSearchIndex = $false
-        Write-SkippedChoice 15 "Windows Search Index Database" "None found / 0 B (Clean)"
+        Write-SkippedChoice 21 "Windows Search Index Database" "None found / 0 B (Clean)"
     }
 } else {
     $doSearchIndex = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 15 "Windows Search Index Database" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 21 "Windows Search Index Database" "Skipped (Requires Administrator privileges)"
     } elseif ($SkipSearchIndex) {
-        Write-SkippedChoice 15 "Windows Search Index Database" "Skipped (-SkipSearchIndex flag passed)"
+        Write-SkippedChoice 21 "Windows Search Index Database" "Skipped (-SkipSearchIndex flag passed)"
     } else {
-        Write-SkippedChoice 15 "Windows Search Index Database" "Service not present (Clean)"
+        Write-SkippedChoice 21 "Windows Search Index Database" "Service not present (Clean)"
     }
 }
 
-# 16. WinSxS ResetBase
+# 22. WinSxS ResetBase
 if ($isAdmin -and (-not $SkipDism)) {
-    $doDism = Ask-Choice 16 "WinSxS Component Store ResetBase" "Deep WinSxS component purge (Takes 2-5 min, prevents old update rollbacks)" $false
+    $doDism = Ask-Choice 22 "WinSxS Component Store ResetBase" "Deep WinSxS component purge (Takes 2-5 min, prevents old update rollbacks)" $false
 } else {
     $doDism = $false
     if (-not $isAdmin) {
-        Write-SkippedChoice 16 "WinSxS Component Store ResetBase" "Skipped (Requires Administrator privileges)"
+        Write-SkippedChoice 22 "WinSxS Component Store ResetBase" "Skipped (Requires Administrator privileges)"
     } else {
-        Write-SkippedChoice 16 "WinSxS Component Store ResetBase" "Skipped (-SkipDism flag passed)"
+        Write-SkippedChoice 22 "WinSxS Component Store ResetBase" "Skipped (-SkipDism flag passed)"
     }
 }
 
@@ -541,31 +742,64 @@ function Write-SkippedExecution {
     Write-Host ""
 }
 
+# Execution: 01. Temp Files
 if ($doTemp) {
     Invoke-Purge "User and Windows Temp Directories" {
         Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged %TEMP% and C:\Windows\Temp disposable caches." -ForegroundColor DarkGray
+        Remove-Item -Path "$sysRoot\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+        if ($isAdmin) {
+            Remove-Item -Path "$sysRoot\ServiceProfiles\NetworkService\AppData\Local\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "$sysRoot\ServiceProfiles\LocalService\AppData\Local\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "               Purged %TEMP%, $sysRoot\Temp, and ServiceProfile disposable caches." -ForegroundColor DarkGray
     }
 } else {
     Write-SkippedExecution "User and Windows Temp Directories"
 }
 
+# Execution: 02. Shaders & WER
 if ($doShaders) {
-    Invoke-Purge "DirectX Shaders & Windows Error Reporting Logs" {
-        Remove-Item -Path "$env:LOCALAPPDATA\D3DSCache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\ProgramData\Microsoft\Windows\WER\ReportArchive\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\ProgramData\Microsoft\Windows\WER\ReportQueue\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged D3DSCache and WER report archive." -ForegroundColor DarkGray
+    Invoke-Purge "DirectX, GPU Shaders & Windows Error Reporting Logs" {
+        foreach ($p in $shaderPaths) {
+            if (Test-Path -LiteralPath $p) {
+                Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "               Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs." -ForegroundColor DarkGray
     }
 } else {
-    Write-SkippedExecution "DirectX Shaders & Windows Error Reporting Logs"
+    Write-SkippedExecution "DirectX, GPU Shaders & Windows Error Reporting Logs"
 }
 
+# Execution: 03. Recycle Bin
+if ($doRecycleBin) {
+    Invoke-Purge "Windows Recycle Bin" {
+        Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+        Write-Host "               Emptied Windows Recycle Bin across all drives." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Windows Recycle Bin"
+}
+
+# Execution: 04. Explorer Thumbnails & Icon Caches
+if ($doThumbnails) {
+    Invoke-Purge "Windows Explorer Thumbnail & Icon Caches" {
+        Get-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db" -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db" -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath "$env:LOCALAPPDATA\IconCache.db") {
+            Remove-Item -LiteralPath "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "               Purged Explorer thumbcache and iconcache databases." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Windows Explorer Thumbnail & Icon Caches"
+}
+
+# Execution: 05. Windows Update Store
 if ($doUpdates -and $isAdmin) {
     Invoke-Purge "Windows Update Download Store" {
         Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$sysRoot\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
         Start-Service -Name wuauserv -ErrorAction SilentlyContinue
         Write-Host "               Stopped wuauserv, purged SoftwareDistribution\Download, restarted service." -ForegroundColor DarkGray
     }
@@ -573,11 +807,16 @@ if ($doUpdates -and $isAdmin) {
     Write-SkippedExecution "Windows Update Download Store"
 }
 
+# Execution: 06. Delivery Optimization
 if ($doDelivery) {
     Invoke-Purge "Windows Delivery Optimization Cache" {
-        $doOut = Delete-DeliveryOptimizationCache -Force 2>&1
-        foreach ($line in $doOut) {
-            if ($line.ToString().Trim()) { Write-Host "               $line" -ForegroundColor DarkGray }
+        $origOut = [Console]::Out
+        $sw = New-Object System.IO.StringWriter
+        try {
+            [Console]::SetOut($sw)
+            $null = Delete-DeliveryOptimizationCache -Force -ErrorAction SilentlyContinue
+        } catch { } finally {
+            [Console]::SetOut($origOut)
         }
         Write-Host "               Purged Windows Delivery Optimization cache." -ForegroundColor DarkGray
     }
@@ -585,68 +824,181 @@ if ($doDelivery) {
     Write-SkippedExecution "Windows Delivery Optimization Cache"
 }
 
-if ($doBrowsers) {
-    Invoke-Purge "Web Browser Caches (Edge, Chrome, Brave)" {
-        Remove-Item -Path "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged browser cache directories." -ForegroundColor DarkGray
-    }
-} else {
-    Write-SkippedExecution "Web Browser Caches"
-}
-
-if ($doMedia) {
-    Invoke-Purge "Spotify & Discord Media Caches" {
-        Remove-Item -Path "$env:LOCALAPPDATA\Spotify\Storage\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:APPDATA\discord\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:APPDATA\discord\Code Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged Spotify streaming storage and Discord media cache." -ForegroundColor DarkGray
-    }
-} else {
-    Write-SkippedExecution "Spotify & Discord Media Caches"
-}
-
-if ($doGames) {
-    Invoke-Purge "Game Launcher Caches (Steam, Epic, Ubisoft, Riot)" {
-        Remove-Item -Path "C:\Program Files (x86)\Steam\appcache\httpcache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LOCALAPPDATA\EpicGamesLauncher\Saved\webcache*\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LOCALAPPDATA\Ubisoft Game Launcher\cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:LOCALAPPDATA\Riot Games\Riot Client\Logs\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged Steam httpcache, Epic webcache, Ubisoft & Riot logs." -ForegroundColor DarkGray
-    }
-} else {
-    Write-SkippedExecution "Game Launcher Caches"
-}
-
-if ($doDev) {
-    Invoke-Purge "Developer Caches (Python pip & VS Code)" {
-        if (Get-Command pip -ErrorAction SilentlyContinue) {
-            $pipOut = pip cache purge 2>&1
-            foreach ($line in $pipOut) {
-                if ($line.ToString().Trim()) { Write-Host "               $line" -ForegroundColor DarkGray }
+# Execution: 07. Google Chrome
+if ($doChrome) {
+    Invoke-Purge "Google Chrome Web & Code Cache" {
+        foreach ($p in $chromePaths) {
+            if ($p -match '[\*\?]') {
+                $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
+                if ($found) {
+                    foreach ($f in $found) {
+                        Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } else {
+                if (Test-Path -LiteralPath $p) {
+                    Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+                }
             }
         }
-        Remove-Item -Path "$env:APPDATA\Code\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "$env:APPDATA\Code\CachedData\*" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "               Purged VS Code Cache and CachedData." -ForegroundColor DarkGray
+        Write-Host "               Purged Google Chrome web cache, code cache, and GPU cache." -ForegroundColor DarkGray
     }
 } else {
-    Write-SkippedExecution "Developer Caches (Python pip & VS Code)"
+    Write-SkippedExecution "Google Chrome Web & Code Cache"
 }
 
+# Execution: 08. Mozilla Firefox
+if ($doFirefox) {
+    Invoke-Purge "Mozilla Firefox Web & Startup Cache" {
+        foreach ($p in $firefoxPaths) {
+            if ($p -match '[\*\?]') {
+                $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
+                if ($found) {
+                    foreach ($f in $found) {
+                        Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } else {
+                if (Test-Path -LiteralPath $p) {
+                    Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        Write-Host "               Purged Mozilla Firefox cache2 and startupCache directories." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Mozilla Firefox Web & Startup Cache"
+}
+
+# Execution: 09. Brave Browser
+if ($doBrave) {
+    Invoke-Purge "Brave Browser Web & Code Cache" {
+        foreach ($p in $bravePaths) {
+            if ($p -match '[\*\?]') {
+                $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
+                if ($found) {
+                    foreach ($f in $found) {
+                        Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } else {
+                if (Test-Path -LiteralPath $p) {
+                    Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        Write-Host "               Purged Brave Browser web cache, code cache, and GPU cache." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Brave Browser Web & Code Cache"
+}
+
+# Execution: 10. Media & Chat Caches
+if ($doMedia) {
+    Invoke-Purge "Media & Chat Caches (Spotify, Discord, Slack, Teams, Telegram, Zoom)" {
+        foreach ($mp in $mediaPaths) {
+            if (Test-Path -LiteralPath $mp) {
+                Remove-Item -Path "$mp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "               Purged Spotify, Discord, Slack, Teams, Telegram, and Zoom caches." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Media & Chat Caches"
+}
+
+# Execution: 11. Steam
+if ($doSteam) {
+    Invoke-Purge "Steam Web & HTTP Cache" {
+        foreach ($p in $steamPaths) {
+            if (Test-Path -LiteralPath $p) {
+                Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "               Purged Steam htmlcache and appcache\httpcache directories." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Steam Web & HTTP Cache"
+}
+
+# Execution: 12. Epic Games Store
+if ($doEpic) {
+    Invoke-Purge "Epic Games Store Web Cache" {
+        foreach ($p in $epicPaths) {
+            if ($p -match '[\*\?]') {
+                $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
+                if ($found) {
+                    foreach ($f in $found) {
+                        Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } else {
+                if (Test-Path -LiteralPath $p) {
+                    Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        Write-Host "               Purged Epic Games Launcher Saved\webcache directories." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Epic Games Store Web Cache"
+}
+
+# Execution: 13. Developer Caches
+if ($doDev) {
+    Invoke-Purge "Developer Toolchain Caches (Pip, VS Code, NPM, Yarn, NuGet, Gradle, Cargo, Go)" {
+        if (Get-Command pip -ErrorAction SilentlyContinue) {
+            $null = pip cache purge 2>&1
+        }
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+            $null = npm cache clean --force 2>&1
+        }
+        if (Get-Command yarn -ErrorAction SilentlyContinue) {
+            $null = yarn cache clean 2>&1
+        }
+        if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+            $null = dotnet nuget locals all --clear 2>&1
+        }
+        if (Get-Command go -ErrorAction SilentlyContinue) {
+            $null = go clean -cache 2>&1
+        }
+
+        foreach ($dp in $devPaths) {
+            if (Test-Path -LiteralPath $dp) {
+                Remove-Item -Path "$dp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "               Purged Pip, VS Code, NPM, Yarn, NuGet, Gradle, Cargo, and Go caches." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Developer Toolchain Caches"
+}
+
+# Execution: 14. Creative Suite Media Caches
+if ($doCreative) {
+    Invoke-Purge "Creative Suite Media Caches (Adobe & DaVinci Resolve)" {
+        foreach ($cp in $creativePaths) {
+            if (Test-Path -LiteralPath $cp) {
+                Remove-Item -Path "$cp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "               Purged Adobe Media Cache and DaVinci Resolve render cache files." -ForegroundColor DarkGray
+    }
+} else {
+    Write-SkippedExecution "Creative Suite Media Caches"
+}
+
+# Execution: 15. Shadow Copies
 if ($doShadows -and $isAdmin) {
     Invoke-Purge "Oldest Volume Shadow Copies (vssadmin)" {
-        $vssOut = vssadmin delete shadows /for=C: /oldest /quiet 2>&1
-        foreach ($line in $vssOut) {
-            if ($line.ToString().Trim()) { Write-Host "               $line" -ForegroundColor DarkGray }
-        }
-        Write-Host "               Purged oldest shadow copies from C: (kept newest)." -ForegroundColor DarkGray
+        $null = vssadmin delete shadows /for=$sysDrive /oldest /quiet 2>&1
+        Write-Host "               Purged oldest shadow copies from $sysDrive (kept newest)." -ForegroundColor DarkGray
     }
 } else {
     Write-SkippedExecution "Oldest Volume Shadow Copies"
 }
 
+# Execution: 16. Upgrade Folders
 if ($doUpgrade) {
     Invoke-Purge "Leftover Windows Upgrade Folders ($foundList)" {
         foreach ($p in $foundUpgradePaths) {
@@ -658,42 +1010,60 @@ if ($doUpgrade) {
     Write-SkippedExecution "Leftover Windows Upgrade Folders"
 }
 
+# Execution: 17. Crash Dumps
 if ($doCrashDumps) {
-    Invoke-Purge "Kernel Crash Dump & Minidump Files" {
-        if (Test-Path "C:\Windows\MEMORY.DMP") {
-            Remove-Item "C:\Windows\MEMORY.DMP" -Force -ErrorAction SilentlyContinue
-            Write-Host "               Deleted C:\Windows\MEMORY.DMP." -ForegroundColor DarkGray
+    Invoke-Purge "Kernel & User Crash Dump Files" {
+        if (Test-Path -LiteralPath "$sysRoot\MEMORY.DMP") {
+            Remove-Item -LiteralPath "$sysRoot\MEMORY.DMP" -Force -ErrorAction SilentlyContinue
+            Write-Host "               Deleted $sysRoot\MEMORY.DMP." -ForegroundColor DarkGray
         }
-        if (Test-Path "C:\Windows\Minidump") {
-            Remove-Item "C:\Windows\Minidump\*" -Force -ErrorAction SilentlyContinue
-            Write-Host "               Purged C:\Windows\Minidump." -ForegroundColor DarkGray
+        if (Test-Path -LiteralPath "$sysRoot\Minidump") {
+            Remove-Item -Path "$sysRoot\Minidump\*" -Force -ErrorAction SilentlyContinue
+            Write-Host "               Purged $sysRoot\Minidump." -ForegroundColor DarkGray
+        }
+        if (Test-Path -LiteralPath "$sysRoot\LiveKernelReports") {
+            Remove-Item -Path "$sysRoot\LiveKernelReports\*" -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "               Purged $sysRoot\LiveKernelReports." -ForegroundColor DarkGray
+        }
+        if (Test-Path -LiteralPath "$env:LOCALAPPDATA\CrashDumps") {
+            Remove-Item -Path "$env:LOCALAPPDATA\CrashDumps\*" -Force -ErrorAction SilentlyContinue
+            Write-Host "               Purged %LOCALAPPDATA%\CrashDumps." -ForegroundColor DarkGray
         }
     }
 } else {
-    Write-SkippedExecution "Kernel Crash Dump & Minidump Files"
+    Write-SkippedExecution "Kernel & User Crash Dump Files"
 }
 
+# Execution: 18. CBS & Servicing Logs
 if ($doCBSLogs -and $isAdmin) {
-    Invoke-Purge "CBS & DISM Log Archives" {
-        Remove-Item -Path "C:\Windows\Logs\CBS\CbsPersist_*" -Force -ErrorAction SilentlyContinue
-        if (Test-Path "C:\Windows\Logs\DISM\dism.log") {
-            Clear-Content -Path "C:\Windows\Logs\DISM\dism.log" -ErrorAction SilentlyContinue
+    Invoke-Purge "CBS, DISM & Panther Log Archives" {
+        Remove-Item -Path "$sysRoot\Logs\CBS\CbsPersist_*" -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath "$sysRoot\Logs\DISM\dism.log") {
+            Clear-Content -Path "$sysRoot\Logs\DISM\dism.log" -ErrorAction SilentlyContinue
         }
-        Write-Host "               Purged CBS persist archives and cleared DISM log file." -ForegroundColor DarkGray
+        if (Test-Path -LiteralPath "$sysRoot\Panther") {
+            Remove-Item -Path "$sysRoot\Panther\*" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath "$env:ProgramData\Microsoft\Diagnosis\ETLLogs") {
+            Remove-Item -Path "$env:ProgramData\Microsoft\Diagnosis\ETLLogs\*.etl" -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "               Purged CBS persist archives, Panther logs, ETLLogs, and cleared DISM log." -ForegroundColor DarkGray
     }
 } else {
-    Write-SkippedExecution "CBS & DISM Log Archives"
+    Write-SkippedExecution "CBS, DISM & Panther Log Archives"
 }
 
+# Execution: 19. Hibernation File
 if ($doHiberfil -and $isAdmin) {
     Invoke-Purge "Windows Hibernation File (hiberfil.sys)" {
-        powercfg -h off
-        Write-Host "               Disabled hibernation via powercfg and purged C:\hiberfil.sys." -ForegroundColor DarkGray
+        $null = powercfg -h off 2>&1
+        Write-Host "               Disabled hibernation via powercfg and purged $hiberPath." -ForegroundColor DarkGray
     }
 } else {
     Write-SkippedExecution "Windows Hibernation File (hiberfil.sys)"
 }
 
+# Execution: 20. Obsolete OEM Drivers
 if ($doDrivers -and $isAdmin -and $supersededDrivers.Count -gt 0) {
     Invoke-Purge "Obsolete OEM Hardware Drivers" {
         $deletedCount = 0
@@ -709,6 +1079,7 @@ if ($doDrivers -and $isAdmin -and $supersededDrivers.Count -gt 0) {
     Write-SkippedExecution "Obsolete OEM Hardware Drivers"
 }
 
+# Execution: 21. Windows Search Index
 if ($doSearchIndex -and $isAdmin) {
     Invoke-Purge "Windows Search Index Database" {
         Stop-Service -Name WSearch -Force -ErrorAction SilentlyContinue
@@ -720,19 +1091,76 @@ if ($doSearchIndex -and $isAdmin) {
     Write-SkippedExecution "Windows Search Index Database"
 }
 
+# Execution: 22. WinSxS ResetBase
 if ($doDism -and $isAdmin) {
     Invoke-Purge "WinSxS Component Store ResetBase" {
-        Write-Host "               Running DISM ComponentCleanup (live progress shown below)..." -ForegroundColor DarkGray
-        Write-Host ""
-        Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase
-        Write-Host ""
-        Write-Host "               Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
+        Write-Host "               Consolidating WinSxS component store via DISM..." -ForegroundColor DarkGray
+        
+        $dismPath = "$sysRoot\System32\Dism.exe"
+        if (-not (Test-Path -LiteralPath $dismPath)) { $dismPath = "Dism.exe" }
+        
+        $pInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pInfo.FileName = $dismPath
+        $pInfo.Arguments = "/online /Cleanup-Image /StartComponentCleanup /ResetBase"
+        $pInfo.RedirectStandardOutput = $true
+        $pInfo.RedirectStandardError = $true
+        $pInfo.UseShellExecute = $false
+        $pInfo.CreateNoWindow = $true
+
+        try {
+            $p = [System.Diagnostics.Process]::Start($pInfo)
+            $buffer = ""
+            $lastProgress = ""
+            
+            while (-not $p.HasExited -or -not $p.StandardOutput.EndOfStream) {
+                $char = $p.StandardOutput.Read()
+                if ($char -eq -1) {
+                    Start-Sleep -Milliseconds 30
+                    continue
+                }
+                $c = [char]$char
+                if ($c -eq "`r" -or $c -eq "`n") {
+                    $rawLine = $buffer.Trim()
+                    $buffer = ""
+                    if ($rawLine) {
+                        if ($rawLine -match '(\[\s*=*\s*(\d{1,3}(\.\d+)?)%\s*=*\s*\])') {
+                            $currProgress = $matches[1]
+                            if ($currProgress -ne $lastProgress) {
+                                $lastProgress = $currProgress
+                                Write-Host -NoNewline "`r               Progress: $currProgress   " -ForegroundColor Cyan
+                            }
+                        } elseif ($rawLine -match '(\d{1,3}(\.\d+)?)%') {
+                            $pct = $matches[0]
+                            if ($pct -ne $lastProgress) {
+                                $lastProgress = $pct
+                                Write-Host -NoNewline "`r               Progress: $pct   " -ForegroundColor Cyan
+                            }
+                        } elseif ($rawLine -match 'completed successfully' -or $rawLine -match '100(\.0)?%') {
+                            Write-Host -NoNewline "`r               Progress: [100.0%] - Completed successfully.          `n" -ForegroundColor Green
+                        } elseif ($rawLine -match 'Error:\s*\d+' -or $rawLine -match 'Failed') {
+                            Write-Host "`n               $rawLine" -ForegroundColor Red
+                        }
+                    }
+                } else {
+                    $buffer += $c
+                }
+            }
+            $p.WaitForExit()
+            if ($p.ExitCode -eq 0) {
+                Write-Host "               Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
+            } else {
+                Write-Host "               DISM exited with code $($p.ExitCode)." -ForegroundColor Yellow
+            }
+        } catch {
+            $null = Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase 2>&1
+            Write-Host "               Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
+        }
     }
 } else {
     Write-SkippedExecution "WinSxS Component Store ResetBase"
 }
 
-$finalFreeBytes = (Get-PSDrive C).Free
+$finalFreeBytes = (Get-PSDrive $sysDriveLetter).Free
 $finalFreeGB = [math]::Round($finalFreeBytes / 1GB, 2)
 $reclaimedGB = [math]::Round(($finalFreeBytes - $initialFreeBytes) / 1GB, 2)
 
@@ -741,10 +1169,10 @@ Write-Host "                        CLEANUP SUMMARY REPORT                      
 Write-Host "========================================================================" -ForegroundColor DarkCyan
 if ($DryRun) {
     Write-Host "  Execution Mode        : Dry Run (Preview Simulation - No changes made)" -ForegroundColor Magenta
-    Write-Host "  Target Volume         : Drive C:" -ForegroundColor Gray
+    Write-Host "  Target Volume         : Drive $sysDrive" -ForegroundColor Gray
     Write-Host "  Current Free Space    : $finalFreeGB GB" -ForegroundColor White
 } else {
-    Write-Host "  Target Volume         : Drive C:" -ForegroundColor Gray
+    Write-Host "  Target Volume         : Drive $sysDrive" -ForegroundColor Gray
     Write-Host "  Starting Free Space   : $initialFreeGB GB" -ForegroundColor White
     Write-Host "  Ending Free Space     : $finalFreeGB GB" -ForegroundColor White
     if ($reclaimedGB -gt 0) {
