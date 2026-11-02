@@ -41,21 +41,27 @@
   Purgeable Detected  : 296.50 MB across 2 active categories
 ========================================================================
 
-  #   Category                Active Items                          Size
+  DETECTED DISPOSABLE CACHES:
  -----------------------------------------------------------------------
- [1]  System Caches         User & Windows Temp Directories...   81.32 MB
- [2]  Browser Caches        Google Chrome Web & Code Cache,...  215.18 MB
+  * SYSTEM CACHES                                             81.32 MB
+    - User & Windows Temp Directories                          8.52 MB
+    - DirectX, GPU Shaders & WER Logs                          1.20 MB
+    - Explorer Thumbnail & Icon Caches                        71.60 MB
+  * BROWSER CACHES                                           215.18 MB
+    - Google Chrome Web & Code Cache                         142.18 MB
+    - Brave Browser Web & Code Cache                          73.00 MB
  -----------------------------------------------------------------------
   * Empty categories with 0 B are automatically hidden
 
- Choose cleanup action:
-   [1] Quick Clean (Recommended: Temp, Shaders, Thumbnails, Web Caches)  [DEFAULT]
-   [2] Full Clean  (Purge all detected safe caches: 296.50 MB)
-   [3] Interactive (TUI Checklist: Arrow keys to navigate, Space to toggle)
-   [4] Graphical UI (Open Modern Dark Mode Window)
-   [Q] Exit
-
- Select [1-4, Q] (Press Enter for Quick Clean): 
+ CHOOSE CLEANUP ACTION:
+ -----------------------------------------------------------------------
+  [1] Quick Clean (Enter) - Safest daily caches (Temp, Shaders, Browsers) [DEFAULT]
+  [2] Full Clean          - Purge all detected disposable caches (296.50 MB)
+  [3] Custom Selection    - Pick specific targets via interactive checklist
+  [4] Open GUI Window     - Launch dark-mode graphical control panel
+  [Q] Exit                - Exit without making any changes
+ -----------------------------------------------------------------------
+ Select action [1-4, Q] (Press Enter for Quick Clean): 
 
 ========================================================================
                        EXECUTING STORAGE CLEANUP                        
@@ -64,21 +70,21 @@
   --- SYSTEM CACHES ---
 
   [ CLEANING ] User & Windows Temp Directories...
-               Purged %TEMP%, C:\Windows\Temp, and ServiceProfile disposable caches.
+    > Purged %TEMP%, C:\Windows\Temp, and ServiceProfile disposable caches.
 
   [ CLEANING ] DirectX, GPU Shaders & WER Logs...
-               Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs.
+    > Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs.
 
   [ CLEANING ] Explorer Thumbnail & Icon Caches...
-               Purged Explorer thumbcache and iconcache databases.
+    > Purged Explorer thumbcache and iconcache databases.
 
   --- BROWSER CACHES ---
 
   [ CLEANING ] Google Chrome Web & Code Cache...
-               Purged Google Chrome web cache, code cache, and GPU cache.
+    > Purged Google Chrome web cache, code cache, and GPU cache.
 
   [ CLEANING ] Brave Browser Web & Code Cache...
-               Purged Brave Browser web cache, code cache, and GPU cache.
+    > Purged Brave Browser web cache, code cache, and GPU cache.
 
 ========================================================================
                         CLEANUP SUMMARY REPORT                          
@@ -86,7 +92,8 @@
   Target Volume         : Drive C:
   Starting Free Space   : 26.94 GB
   Ending Free Space     : 27.24 GB
-  Total Space Reclaimed : +0.30 GB
+  Total Space Reclaimed : +296.50 MB across 5 target(s)
+  Drive Free Space Gain : +0.30 GB
   Overall Status        : Completed Successfully
 ========================================================================
 ```

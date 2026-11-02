@@ -363,7 +363,7 @@ function Get-CleanupTargetsRegistry {
                     Remove-Item -Path "$sysRoot\ServiceProfiles\NetworkService\AppData\Local\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
                     Remove-Item -Path "$sysRoot\ServiceProfiles\LocalService\AppData\Local\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
                 }
-                Write-Host "               Purged %TEMP%, $sysRoot\Temp, and ServiceProfile disposable caches." -ForegroundColor DarkGray
+                Write-Host "    > Purged %TEMP%, $sysRoot\Temp, and ServiceProfile disposable caches." -ForegroundColor DarkGray
             }
         },
         @{
@@ -388,7 +388,7 @@ function Get-CleanupTargetsRegistry {
                     "$env:LOCALAPPDATA\Microsoft\Windows\WER\ReportArchive"
                 )
                 foreach ($p in $paths) { if (Test-Path -LiteralPath $p) { Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue } }
-                Write-Host "               Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs." -ForegroundColor DarkGray
+                Write-Host "    > Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs." -ForegroundColor DarkGray
             }
         },
         @{
@@ -398,7 +398,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-RecycleBinMetrics };
             PurgeAction = {
                 Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-                Write-Host "               Emptied Windows Recycle Bin across all drives." -ForegroundColor DarkGray
+                Write-Host "    > Emptied Windows Recycle Bin across all drives." -ForegroundColor DarkGray
             }
         },
         @{
@@ -410,7 +410,7 @@ function Get-CleanupTargetsRegistry {
                 Get-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db" -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
                 Get-Item -Path "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db" -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\IconCache.db") { Remove-Item -LiteralPath "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Explorer thumbcache and iconcache databases." -ForegroundColor DarkGray
+                Write-Host "    > Purged Explorer thumbcache and iconcache databases." -ForegroundColor DarkGray
             }
         },
         @{
@@ -422,7 +422,7 @@ function Get-CleanupTargetsRegistry {
                 Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
                 Remove-Item -Path "$sysRoot\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
                 Start-Service -Name wuauserv -ErrorAction SilentlyContinue
-                Write-Host "               Stopped wuauserv, purged SoftwareDistribution\Download, restarted service." -ForegroundColor DarkGray
+                Write-Host "    > Stopped wuauserv, purged SoftwareDistribution\Download, restarted service." -ForegroundColor DarkGray
             }
         },
         @{
@@ -439,7 +439,7 @@ function Get-CleanupTargetsRegistry {
                 } catch { } finally {
                     [Console]::SetOut($origOut)
                 }
-                Write-Host "               Purged Windows Delivery Optimization cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Windows Delivery Optimization cache." -ForegroundColor DarkGray
             }
         },
 
@@ -455,7 +455,7 @@ function Get-CleanupTargetsRegistry {
                     $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
                     if ($found) { foreach ($f in $found) { Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue } }
                 }
-                Write-Host "               Purged Google Chrome web cache, code cache, and GPU cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Google Chrome web cache, code cache, and GPU cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -469,7 +469,7 @@ function Get-CleanupTargetsRegistry {
                     $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
                     if ($found) { foreach ($f in $found) { Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue } }
                 }
-                Write-Host "               Purged Mozilla Firefox cache2 and startupCache directories." -ForegroundColor DarkGray
+                Write-Host "    > Purged Mozilla Firefox cache2 and startupCache directories." -ForegroundColor DarkGray
             }
         },
         @{
@@ -483,7 +483,7 @@ function Get-CleanupTargetsRegistry {
                     $found = Get-Item -Path $p -Force -ErrorAction SilentlyContinue
                     if ($found) { foreach ($f in $found) { Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue } }
                 }
-                Write-Host "               Purged Brave Browser web cache, code cache, and GPU cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Brave Browser web cache, code cache, and GPU cache." -ForegroundColor DarkGray
             }
         },
 
@@ -497,7 +497,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($p in @("$env:LOCALAPPDATA\Steam\htmlcache", "${env:ProgramFiles(x86)}\Steam\appcache\httpcache")) {
                     if (Test-Path -LiteralPath $p) { Remove-Item -Path "$p\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Steam htmlcache and appcache\httpcache directories." -ForegroundColor DarkGray
+                Write-Host "    > Purged Steam htmlcache and appcache\httpcache directories." -ForegroundColor DarkGray
             }
         },
         @{
@@ -508,7 +508,7 @@ function Get-CleanupTargetsRegistry {
             PurgeAction = {
                 $found = Get-Item -Path "$env:LOCALAPPDATA\EpicGamesLauncher\Saved\webcache*" -Force -ErrorAction SilentlyContinue
                 if ($found) { foreach ($f in $found) { Remove-Item -Path "$($f.FullName)\*" -Recurse -Force -ErrorAction SilentlyContinue } }
-                Write-Host "               Purged Epic Games Launcher Saved\webcache directories." -ForegroundColor DarkGray
+                Write-Host "    > Purged Epic Games Launcher Saved\webcache directories." -ForegroundColor DarkGray
             }
         },
 
@@ -520,7 +520,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:LOCALAPPDATA\Spotify\Storage") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\Spotify\Storage") { Remove-Item -Path "$env:LOCALAPPDATA\Spotify\Storage\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Spotify streaming audio storage cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Spotify streaming audio storage cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -532,7 +532,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($dp in @("$env:APPDATA\discord\Cache", "$env:APPDATA\discord\Code Cache")) {
                     if (Test-Path -LiteralPath $dp) { Remove-Item -Path "$dp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Discord web cache and code cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Discord web cache and code cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -544,7 +544,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($sp in @("$env:APPDATA\Slack\Cache", "$env:APPDATA\Slack\Code Cache", "$env:APPDATA\Slack\Service Worker\CacheStorage")) {
                     if (Test-Path -LiteralPath $sp) { Remove-Item -Path "$sp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Slack web cache, code cache, and service worker cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Slack web cache, code cache, and service worker cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -556,7 +556,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($tp in @("$env:LOCALAPPDATA\Packages\MSTeams_8wekyb3d8bbwe\LocalCache", "$env:APPDATA\Microsoft\Teams\Cache", "$env:APPDATA\Microsoft\Teams\blob_storage", "$env:APPDATA\Microsoft\Teams\tmp")) {
                     if (Test-Path -LiteralPath $tp) { Remove-Item -Path "$tp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Microsoft Teams local cache, blob storage, and temporary files." -ForegroundColor DarkGray
+                Write-Host "    > Purged Microsoft Teams local cache, blob storage, and temporary files." -ForegroundColor DarkGray
             }
         },
         @{
@@ -566,7 +566,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:APPDATA\Telegram Desktop\tdata\user_data\media_cache") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:APPDATA\Telegram Desktop\tdata\user_data\media_cache") { Remove-Item -Path "$env:APPDATA\Telegram Desktop\tdata\user_data\media_cache\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Telegram Desktop user media cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Telegram Desktop user media cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -578,7 +578,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($zp in @("$env:APPDATA\Zoom\data", "$env:LOCALAPPDATA\Zoom\temp")) {
                     if (Test-Path -LiteralPath $zp) { Remove-Item -Path "$zp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Zoom meeting data cache and temporary files." -ForegroundColor DarkGray
+                Write-Host "    > Purged Zoom meeting data cache and temporary files." -ForegroundColor DarkGray
             }
         },
 
@@ -591,7 +591,7 @@ function Get-CleanupTargetsRegistry {
             PurgeAction = {
                 if (Get-Command pip -ErrorAction SilentlyContinue) { $null = pip cache purge 2>&1 }
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\pip\cache") { Remove-Item -Path "$env:LOCALAPPDATA\pip\cache\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Python pip wheel download and HTTP cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Python pip wheel download and HTTP cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -603,7 +603,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($vp in @("$env:APPDATA\Code\Cache", "$env:APPDATA\Code\CachedData")) {
                     if (Test-Path -LiteralPath $vp) { Remove-Item -Path "$vp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Visual Studio Code web cache and compiled V8 data cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Visual Studio Code web cache and compiled V8 data cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -616,7 +616,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($np in @("$env:LOCALAPPDATA\npm-cache", "$env:APPDATA\npm-cache")) {
                     if (Test-Path -LiteralPath $np) { Remove-Item -Path "$np\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged NPM global cache files." -ForegroundColor DarkGray
+                Write-Host "    > Purged NPM global cache files." -ForegroundColor DarkGray
             }
         },
         @{
@@ -627,7 +627,7 @@ function Get-CleanupTargetsRegistry {
             PurgeAction = {
                 if (Get-Command yarn -ErrorAction SilentlyContinue) { $null = yarn cache clean 2>&1 }
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\Yarn\Cache") { Remove-Item -Path "$env:LOCALAPPDATA\Yarn\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Yarn package cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Yarn package cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -637,7 +637,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:LOCALAPPDATA\pnpm\store") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\pnpm\store") { Remove-Item -Path "$env:LOCALAPPDATA\pnpm\store\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged pnpm content-addressable store cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged pnpm content-addressable store cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -648,7 +648,7 @@ function Get-CleanupTargetsRegistry {
             PurgeAction = {
                 if (Get-Command dotnet -ErrorAction SilentlyContinue) { $null = dotnet nuget locals all --clear 2>&1 }
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\NuGet\v3-cache") { Remove-Item -Path "$env:LOCALAPPDATA\NuGet\v3-cache\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged NuGet v3 local cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged NuGet v3 local cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -658,7 +658,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:USERPROFILE\.gradle\caches") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:USERPROFILE\.gradle\caches") { Remove-Item -Path "$env:USERPROFILE\.gradle\caches\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Gradle build caches." -ForegroundColor DarkGray
+                Write-Host "    > Purged Gradle build caches." -ForegroundColor DarkGray
             }
         },
         @{
@@ -668,7 +668,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:USERPROFILE\.cargo\registry\cache") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:USERPROFILE\.cargo\registry\cache") { Remove-Item -Path "$env:USERPROFILE\.cargo\registry\cache\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Cargo (Rust) registry package cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Cargo (Rust) registry package cache." -ForegroundColor DarkGray
             }
         },
         @{
@@ -679,7 +679,7 @@ function Get-CleanupTargetsRegistry {
             PurgeAction = {
                 if (Get-Command go -ErrorAction SilentlyContinue) { $null = go clean -cache 2>&1 }
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\go-build") { Remove-Item -Path "$env:LOCALAPPDATA\go-build\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged Go compiler build cache." -ForegroundColor DarkGray
+                Write-Host "    > Purged Go compiler build cache." -ForegroundColor DarkGray
             }
         },
 
@@ -693,7 +693,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($cp in @("$env:APPDATA\Adobe\Common\Media Cache Files", "$env:APPDATA\Adobe\Common\Media Cache")) {
                     if (Test-Path -LiteralPath $cp) { Remove-Item -Path "$cp\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 }
-                Write-Host "               Purged Adobe Premiere / After Effects Media Cache files." -ForegroundColor DarkGray
+                Write-Host "    > Purged Adobe Premiere / After Effects Media Cache files." -ForegroundColor DarkGray
             }
         },
         @{
@@ -703,7 +703,7 @@ function Get-CleanupTargetsRegistry {
             ScanFunc = { Get-FolderMetrics @("$env:USERPROFILE\Videos\CacheClip") };
             PurgeAction = {
                 if (Test-Path -LiteralPath "$env:USERPROFILE\Videos\CacheClip") { Remove-Item -Path "$env:USERPROFILE\Videos\CacheClip\*" -Recurse -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged DaVinci Resolve CacheClip scratch and render cache files." -ForegroundColor DarkGray
+                Write-Host "    > Purged DaVinci Resolve CacheClip scratch and render cache files." -ForegroundColor DarkGray
             }
         },
 
@@ -724,7 +724,7 @@ function Get-CleanupTargetsRegistry {
             };
             PurgeAction = {
                 $null = vssadmin delete shadows /for=$sysDrive /oldest /quiet 2>&1
-                Write-Host "               Purged oldest shadow copies from $sysDrive (kept newest)." -ForegroundColor DarkGray
+                Write-Host "    > Purged oldest shadow copies from $sysDrive (kept newest)." -ForegroundColor DarkGray
             }
         },
         @{
@@ -741,7 +741,7 @@ function Get-CleanupTargetsRegistry {
                 foreach ($p in $upgradePaths) {
                     if (Test-Path -LiteralPath $p) {
                         Remove-Item -Path $p -Recurse -Force -ErrorAction SilentlyContinue
-                        Write-Host "               Removed $p." -ForegroundColor DarkGray
+                        Write-Host "    > Removed $p." -ForegroundColor DarkGray
                     }
                 }
             }
@@ -756,7 +756,7 @@ function Get-CleanupTargetsRegistry {
                 if (Test-Path -LiteralPath "$sysRoot\Minidump") { Remove-Item -Path "$sysRoot\Minidump\*" -Force -ErrorAction SilentlyContinue }
                 if (Test-Path -LiteralPath "$sysRoot\LiveKernelReports") { Remove-Item -Path "$sysRoot\LiveKernelReports\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 if (Test-Path -LiteralPath "$env:LOCALAPPDATA\CrashDumps") { Remove-Item -Path "$env:LOCALAPPDATA\CrashDumps\*" -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged memory crash dumps and minidump files." -ForegroundColor DarkGray
+                Write-Host "    > Purged memory crash dumps and minidump files." -ForegroundColor DarkGray
             }
         },
         @{
@@ -779,7 +779,7 @@ function Get-CleanupTargetsRegistry {
                 if (Test-Path -LiteralPath "$sysRoot\Logs\DISM\dism.log") { Clear-Content -Path "$sysRoot\Logs\DISM\dism.log" -ErrorAction SilentlyContinue }
                 if (Test-Path -LiteralPath "$sysRoot\Panther") { Remove-Item -Path "$sysRoot\Panther\*" -Recurse -Force -ErrorAction SilentlyContinue }
                 if (Test-Path -LiteralPath "$env:ProgramData\Microsoft\Diagnosis\ETLLogs") { Remove-Item -Path "$env:ProgramData\Microsoft\Diagnosis\ETLLogs\*.etl" -Force -ErrorAction SilentlyContinue }
-                Write-Host "               Purged CBS persist archives, Panther logs, ETLLogs, and cleared DISM log." -ForegroundColor DarkGray
+                Write-Host "    > Purged CBS persist archives, Panther logs, ETLLogs, and cleared DISM log." -ForegroundColor DarkGray
             }
         },
         @{
@@ -797,7 +797,7 @@ function Get-CleanupTargetsRegistry {
             };
             PurgeAction = {
                 $null = powercfg -h off 2>&1
-                Write-Host "               Disabled hibernation via powercfg and purged $sysDrive\hiberfil.sys." -ForegroundColor DarkGray
+                Write-Host "    > Disabled hibernation via powercfg and purged $sysDrive\hiberfil.sys." -ForegroundColor DarkGray
             }
         },
         @{
@@ -850,7 +850,7 @@ function Get-CleanupTargetsRegistry {
                     $pOut = pnputil /delete-driver $drv.PublishedName 2>&1
                     if ($pOut -match "successfully deleted" -or $pOut -match "Driver package deleted") { $delCount++ }
                 }
-                Write-Host "               Purged $delCount superseded OEM driver packages from DriverStore." -ForegroundColor DarkGray
+                Write-Host "    > Purged $delCount superseded OEM driver packages from DriverStore." -ForegroundColor DarkGray
             }
         },
         @{
@@ -867,7 +867,7 @@ function Get-CleanupTargetsRegistry {
                 Stop-Service -Name WSearch -Force -ErrorAction SilentlyContinue
                 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Search" -Name "SetupCompletedSuccessfully" -Value 0 -ErrorAction SilentlyContinue
                 Start-Service -Name WSearch -ErrorAction SilentlyContinue
-                Write-Host "               Reset Windows Search index configuration and restarted WSearch service." -ForegroundColor DarkGray
+                Write-Host "    > Reset Windows Search index configuration and restarted WSearch service." -ForegroundColor DarkGray
             }
         },
         @{
@@ -881,7 +881,7 @@ function Get-CleanupTargetsRegistry {
                 return [PSCustomObject]@{ Bytes = [int64]0; Count = 0; Formatted = "0 B" }
             };
             PurgeAction = {
-                Write-Host "               Consolidating WinSxS component store via DISM..." -ForegroundColor DarkGray
+                Write-Host "    > Consolidating WinSxS component store via DISM..." -ForegroundColor DarkGray
                 $dismPath = "$sysRoot\System32\Dism.exe"
                 if (-not (Test-Path -LiteralPath $dismPath)) { $dismPath = "Dism.exe" }
                 $pInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -907,16 +907,16 @@ function Get-CleanupTargetsRegistry {
                                     $currProgress = $matches[1]
                                     if ($currProgress -ne $lastProgress) {
                                         $lastProgress = $currProgress
-                                        Write-Host -NoNewline "`r               Progress: $currProgress   " -ForegroundColor Cyan
+                                        Write-Host -NoNewline "`r    > Progress: $currProgress   " -ForegroundColor Cyan
                                     }
                                 } elseif ($rawLine -match '(\d{1,3}(\.\d+)?)%') {
                                     $pct = $matches[0]
                                     if ($pct -ne $lastProgress) {
                                         $lastProgress = $pct
-                                        Write-Host -NoNewline "`r               Progress: $pct   " -ForegroundColor Cyan
+                                        Write-Host -NoNewline "`r    > Progress: $pct   " -ForegroundColor Cyan
                                     }
                                 } elseif ($rawLine -match 'completed successfully' -or $rawLine -match '100(\.0)?%') {
-                                    Write-Host -NoNewline "`r               Progress: [100.0%] - Completed successfully.          `n" -ForegroundColor Green
+                                    Write-Host -NoNewline "`r    > Progress: [100.0%] - Completed successfully.          `n" -ForegroundColor Green
                                 }
                             }
                         } else {
@@ -924,10 +924,10 @@ function Get-CleanupTargetsRegistry {
                         }
                     }
                     $p.WaitForExit()
-                    Write-Host "               Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
+                    Write-Host "    > Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
                 } catch {
                     $null = Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase 2>&1
-                    Write-Host "               Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
+                    Write-Host "    > Deep WinSxS component cleanup completed." -ForegroundColor DarkGray
                 }
             }
         }
@@ -959,6 +959,10 @@ function Get-CleanupTargetsRegistry {
 # FAST PRE-SCAN EXECUTION
 # -----------------------------------------------------------------------------
 
+if (-not $All -and [string]::IsNullOrEmpty($Preset) -and -not [Console]::IsOutputRedirected) {
+    Write-Host "  Scanning disposable caches..." -ForegroundColor Cyan -NoNewline
+}
+
 $allTargets = Get-CleanupTargetsRegistry
 $activeTargets = @()
 $totalPurgeableBytes = [int64]0
@@ -976,6 +980,10 @@ foreach ($target in $allTargets) {
     }
 }
 
+if (-not $All -and [string]::IsNullOrEmpty($Preset) -and -not [Console]::IsOutputRedirected) {
+    Write-Host "`r                                              `r" -NoNewline
+}
+
 # Group active targets by category
 $categoriesGrouped = $activeTargets | Group-Object Category
 
@@ -986,6 +994,9 @@ $categoriesGrouped = $activeTargets | Group-Object Category
 function Invoke-TuiChecklist {
     param([array]$Targets)
     if ($Targets.Count -eq 0) { return @() }
+    if ([Console]::IsInputRedirected) {
+        return ($Targets | Where-Object { $_.Selected })
+    }
     
     $selectedIndex = 0
     $running = $true
@@ -1299,7 +1310,6 @@ if ($All) {
     }
 } else {
     # Default Interactive Dashboard
-    Clear-Host
     Write-Host ""
     Write-Host "========================================================================" -ForegroundColor DarkCyan
     Write-Host "                WINDOWS STORAGE DEEP CLEANUP TOOLKIT                    " -ForegroundColor Cyan
@@ -1321,37 +1331,38 @@ if ($All) {
         exit 0
     }
 
-    # Display detected storage table
-    Write-Host "  #   Category                Active Items                          Size" -ForegroundColor DarkCyan
+    # Display detected storage table - cleanly itemized with NO row numbers
+    Write-Host "  DETECTED DISPOSABLE CACHES:" -ForegroundColor Cyan
     Write-Host " -----------------------------------------------------------------------" -ForegroundColor DarkGray
     
-    $catIndex = 1
     foreach ($grp in $categoriesGrouped) {
-        $catSum = ($grp.Group | Measure-Object -Property SizeBytes -Sum).Sum
-        $itemTitles = ($grp.Group | Select-Object -ExpandProperty Title) -join ", "
-        if ($itemTitles.Length -gt 34) { $itemTitles = $itemTitles.Substring(0, 31) + "..." }
+        $grpSum = ($grp.Group | Measure-Object -Property SizeBytes -Sum).Sum
+        Write-Host "  * " -NoNewline -ForegroundColor Cyan
+        Write-Host ("{0,-52}" -f $grp.Name.ToUpper()) -NoNewline -ForegroundColor Cyan
+        Write-Host ((Format-ByteSize $grpSum).PadLeft(14)) -ForegroundColor Yellow
         
-        Write-Host " [$catIndex]  " -NoNewline -ForegroundColor Cyan
-        Write-Host ("{0,-22}" -f $grp.Name) -NoNewline -ForegroundColor White
-        Write-Host ("{0,-36}" -f $itemTitles) -NoNewline -ForegroundColor Gray
-        Write-Host ((Format-ByteSize $catSum).PadLeft(9)) -ForegroundColor Yellow
-        $catIndex++
+        foreach ($item in $grp.Group) {
+            Write-Host "    - " -NoNewline -ForegroundColor DarkGray
+            Write-Host ("{0,-50}" -f $item.Title) -NoNewline -ForegroundColor White
+            Write-Host ($item.FormattedSize.PadLeft(14)) -ForegroundColor Gray
+        }
     }
     Write-Host " -----------------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  * Empty categories with 0 B are automatically hidden" -ForegroundColor DarkGray
     Write-Host ""
     
-    # 1-Keystroke intuitive action menu
-    Write-Host " Choose cleanup action:" -ForegroundColor Cyan
-    Write-Host "   [1] Quick Clean (Recommended: Temp, Shaders, Thumbnails, Web Caches)  [DEFAULT]" -ForegroundColor White
-    Write-Host "   [2] Full Clean  (Purge all detected safe caches: $(Format-ByteSize $totalPurgeableBytes))" -ForegroundColor White
-    Write-Host "   [3] Interactive (TUI Checklist: Arrow keys to navigate, Space to toggle)" -ForegroundColor White
-    Write-Host "   [4] Graphical UI (Open Modern Dark Mode Window)" -ForegroundColor White
-    Write-Host "   [Q] Exit" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host " Select [1-4, Q] (Press Enter for Quick Clean): " -NoNewline -ForegroundColor Yellow
+    # 1-Keystroke intuitive action menu (numbers used EXCLUSIVELY for actions)
+    Write-Host " CHOOSE CLEANUP ACTION:" -ForegroundColor Cyan
+    Write-Host " -----------------------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  [1] Quick Clean (Enter) - Safest daily caches (Temp, Shaders, Browsers) [DEFAULT]" -ForegroundColor White
+    Write-Host "  [2] Full Clean          - Purge all detected disposable caches ($(Format-ByteSize $totalPurgeableBytes))" -ForegroundColor White
+    Write-Host "  [3] Custom Selection    - Pick specific targets via interactive checklist" -ForegroundColor White
+    Write-Host "  [4] Open GUI Window     - Launch dark-mode graphical control panel" -ForegroundColor White
+    Write-Host "  [Q] Exit                - Exit without making any changes" -ForegroundColor DarkGray
+    Write-Host " -----------------------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host " Select action [1-4, Q] (Press Enter for Quick Clean): " -NoNewline -ForegroundColor Yellow
 
-    $choice = Read-Host
+    $choice = if ([Console]::IsInputRedirected) { [Console]::In.ReadLine() } else { Read-Host }
     if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
 
     switch ($choice.Trim().ToLower()) {
@@ -1429,18 +1440,22 @@ function Invoke-Purge {
 }
 
 $execCategories = $selectedTargets | Group-Object Category
+$actualPurgedBytes = [int64]0
+$purgedTargetsCount = 0
 
 foreach ($grp in $execCategories) {
     Write-Host "  --- $($grp.Name.ToUpper()) ---" -ForegroundColor DarkCyan
     Write-Host ""
     foreach ($target in $grp.Group) {
         Invoke-Purge $target.Title $target.PurgeAction
+        $actualPurgedBytes += $target.SizeBytes
+        $purgedTargetsCount++
     }
 }
 
 $finalFreeBytes = (Get-PSDrive $sysDriveLetter).Free
 $finalFreeGB = [math]::Round($finalFreeBytes / 1GB, 2)
-$reclaimedGB = [math]::Round(($finalFreeBytes - $initialFreeBytes) / 1GB, 2)
+$driveDeltaGB = [math]::Round(($finalFreeBytes - $initialFreeBytes) / 1GB, 2)
 
 Write-Host "========================================================================" -ForegroundColor DarkCyan
 Write-Host "                        CLEANUP SUMMARY REPORT                          " -ForegroundColor Cyan
@@ -1449,14 +1464,18 @@ if ($DryRun) {
     Write-Host "  Execution Mode        : Dry Run (Preview Simulation - No changes made)" -ForegroundColor Magenta
     Write-Host "  Target Volume         : Drive $sysDrive" -ForegroundColor Gray
     Write-Host "  Current Free Space    : $finalFreeGB GB" -ForegroundColor White
+    Write-Host "  Simulated Purge Size  : $(Format-ByteSize $actualPurgedBytes) across $purgedTargetsCount target(s)" -ForegroundColor Yellow
 } else {
     Write-Host "  Target Volume         : Drive $sysDrive" -ForegroundColor Gray
     Write-Host "  Starting Free Space   : $initialFreeGB GB" -ForegroundColor White
     Write-Host "  Ending Free Space     : $finalFreeGB GB" -ForegroundColor White
-    if ($reclaimedGB -gt 0) {
-        Write-Host "  Total Space Reclaimed : +$reclaimedGB GB" -ForegroundColor Green
+    if ($actualPurgedBytes -gt 0) {
+        Write-Host "  Total Space Reclaimed : +$(Format-ByteSize $actualPurgedBytes) across $purgedTargetsCount target(s)" -ForegroundColor Green
     } else {
-        Write-Host "  Total Space Reclaimed : 0.00 GB (Caches were already clean)" -ForegroundColor DarkGray
+        Write-Host "  Total Space Reclaimed : 0 B (Caches were already clean)" -ForegroundColor DarkGray
+    }
+    if ($driveDeltaGB -gt 0) {
+        Write-Host "  Drive Free Space Gain : +$driveDeltaGB GB" -ForegroundColor Green
     }
     Write-Host "  Overall Status        : Completed Successfully" -ForegroundColor Green
 }
