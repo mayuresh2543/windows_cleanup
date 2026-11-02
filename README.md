@@ -16,15 +16,16 @@
 
 ## Features
 
-- **Modular Two-Level Menu**: Organized into 7 logical categories (`System`, `Browsers`, `Game Launchers`, `Apps`, `Developer Tools`, `Creative Suite`, `System Advanced`). Choose `[A]ll` to include all targets in a category at once, `[I]ndividual` to cherry-pick specific targets, or `[S]kip` to bypass the entire category.
-- **Sizing Pre-Scan**: Dynamically measures directory sizes across all 36 targets in milliseconds before prompting, showing exact detected space (e.g., `Found 8.57 GB`).
-- **Automatic 0-Byte Bypass**: Targets with 0 bytes, empty caches, or uninstalled applications are automatically excluded from the selection wizard and skipped.
-- **Individual App & Tool Granularity**: Dedicated individual prompts and controls for communication apps (Spotify, Discord, Slack, Teams, Telegram, Zoom), developer toolchains (Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, Go), creative editors (Adobe, DaVinci Resolve), browsers (Chrome, Firefox, Brave), and game launchers (Steam, Epic Games Store).
+- **Modern Action Hub & 1-Keystroke Presets**: Starts with an instant overview dashboard showing detected cache sizes across all categories. Press `[Enter]` to instantly run **Quick Clean** (safe temp, shaders, thumbnails, browser caches), `[2]` for **Full Clean**, `[3]` for the **Interactive TUI Checklist**, or `[4]` to launch the **Graphical UI**.
+- **Interactive TUI Checklist**: Granular console selection using keyboard arrow keys (`↑`/`↓`) to navigate, `[SPACE]` to toggle targets, `[A]` for all/none, and `[ENTER]` to start cleaning. No tedious letter typing or sequential questionnaires.
+- **Modern Dark-Mode Graphical UI (`-Gui`)**: Native Windows presentation window (WPF) with dark theme, category cards, toggle switches, and a live reclaimed space scoreboard. Built into Windows with zero external dependencies.
+- **Zero False-Positive Sizing**: Accurately measures Delivery Optimization via `FileSizeInCache` (eliminates phantom multi-gigabyte reports after cleanup), accurately queries Recycle Bin via Windows Shell COM (eliminates phantom 3.7 KB from `desktop.ini` and orphaned index headers), and clamps sub-kilobyte empty directory stubs.
+- **Automatic 0-Byte Bypass**: Categories and targets with 0 bytes, empty caches, or uninstalled applications are automatically hidden from view.
 - **GPU Hardware Shader Pruning**: Purges unmanaged NVIDIA, AMD, and Intel hardware shader disks alongside DirectX `D3DSCache`.
 - **System Drive Portability**: Automatically resolves system drive letters (`$env:SystemDrive`, `$env:SystemRoot`) rather than assuming static `C:\`.
 - **QuickEdit Freeze Prevention**: Dynamically disables console QuickEdit mode via low-level Win32 API (`kernel32.dll` `SetConsoleMode`), preventing accidental process suspension when clicking inside the terminal.
-- **Real-Time DISM Progress**: Streams live progress percentages (`Progress: [====== 20.0% ======]`) indented cleanly during WinSxS consolidation (`DISM /ResetBase`).
-- **Zero Emojis**: Clean, modern terminal formatting using standard ASCII dividers, aligned status badges (`[ CLEANING ]`, `[ SKIPPED  ]`, `[ DRY-RUN  ]`), and free space scorecards.
+- **Real-Time DISM Progress**: Streams live progress percentages (`Progress: [====== 20.0% ======]`) cleanly during WinSxS consolidation (`DISM /ResetBase`).
+- **Zero Emojis & Pure ASCII**: Clean, modern terminal formatting using standard ASCII dividers, aligned status badges (`[ CLEANING ]`, `[ SKIPPED  ]`, `[ DRY-RUN  ]`), and free space scorecards.
 - **Preserves Critical User Data**: Browser logins, cookies, session history, game installations, and save files are strictly preserved.
 
 ---
@@ -36,82 +37,25 @@
                 WINDOWS STORAGE DEEP CLEANUP TOOLKIT                    
              Non-Destructive Storage Optimizer for Win 10/11            
 ========================================================================
-  Target Volume       : Drive C:
-  Initial Free Space  : 14.74 GB
+  Target Volume       : Drive C: (26.94 GB Free)
+  Purgeable Detected  : 296.50 MB across 2 active categories
 ========================================================================
 
- [CONFIG] Select cleanup targets (Press Enter to accept default):
-------------------------------------------------------------------------
+  #   Category                Active Items                          Size
+ -----------------------------------------------------------------------
+ [1]  System Caches         User & Windows Temp Directories...   81.32 MB
+ [2]  Browser Caches        Google Chrome Web & Code Cache,...  215.18 MB
+ -----------------------------------------------------------------------
+  * Empty categories with 0 B are automatically hidden
 
-  ---------------------------------------------------------------------
-  [ CATEGORY ] System Caches
-               Temp dirs, GPU shaders, Recycle Bin, thumbnails, Windows Update, Delivery Optimization
-               Clean this category? [A]ll / [I]ndividual / [S]kip [A]: a
+ Choose cleanup action:
+   [1] Quick Clean (Recommended: Temp, Shaders, Thumbnails, Web Caches)  [DEFAULT]
+   [2] Full Clean  (Purge all detected safe caches: 296.50 MB)
+   [3] Interactive (TUI Checklist: Arrow keys to navigate, Space to toggle)
+   [4] Graphical UI (Open Modern Dark Mode Window)
+   [Q] Exit
 
-  [01] User & Windows Temp Directories
-       Found 5.81 MB disposable temporary caches in %TEMP% and C:\Windows\Temp
-       [+] Included (Category: All)
-
-  [02] DirectX, GPU Shaders & Error Reporting Logs
-       Found 1.91 GB shaders (DirectX, NVIDIA, AMD, Intel) and WER archives
-       [+] Included (Category: All)
-
-  [03] Windows Recycle Bin
-       Found 3.52 GB discarded files across drive bins
-       [+] Included (Category: All)
-
-  [04] Explorer Thumbnail & Icon Caches
-       Found 47.3 MB cached Explorer thumbnail databases (thumbcache_*.db)
-       [+] Included (Category: All)
-
-  [05] Windows Update Download Store
-       Found 1.25 GB staged packages in SoftwareDistribution\Download
-       [+] Included (Category: All)
-
-  [06] Windows Delivery Optimization Cache - None found / 0 B (Clean)
-
-  ---------------------------------------------------------------------
-  [ CATEGORY ] Browser Caches
-               Google Chrome, Mozilla Firefox, Brave Browser
-               Clean this category? [A]ll / [I]ndividual / [S]kip [A]: i
-
-  [07] Google Chrome Web & Code Cache
-       Found 8.57 GB cached web assets and compiled code caches across profiles
-       Clean this target? [Y/n]: y
-
-  [08] Mozilla Firefox Web & Startup Cache
-       Found 717.05 MB offline cache2 files and startup cache across profiles
-       Clean this target? [Y/n]: y
-
-  [09] Brave Browser Web & Code Cache - None found / 0 B (Clean)
-
-  ---------------------------------------------------------------------
-  [ CATEGORY ] App Caches
-               Spotify, Discord, Slack, Teams, Telegram, Zoom
-               Clean this category? [A]ll / [I]ndividual / [S]kip [A]: a
-
-  [12] Spotify Audio Storage Cache
-       Found 340.50 MB downloaded audio streams and offline assets
-       [+] Included (Category: All)
-
-  [13] Discord Web & Code Cache
-       Found 120.30 MB cached message media, avatars, and V8 code cache
-       [+] Included (Category: All)
-
-  ---------------------------------------------------------------------
-  [ CATEGORY ] Developer Tool Caches
-               Pip, VS Code, NPM, Yarn, pnpm, NuGet, Gradle, Cargo, Go
-               Clean this category? [A]ll / [I]ndividual / [S]kip [A]: i
-
-  [18] Python / Pip Package Cache - None found / 0 B (Clean)
-
-  [19] Visual Studio Code Cache
-       Found 45.20 MB editor web cache and compiled V8 data cache
-       Clean this target? [Y/n]: y
-
-  [20] NPM Package Cache
-       Found 2.10 GB cached tarballs and package metadata
-       Clean this target? [Y/n]: n
+ Select [1-4, Q] (Press Enter for Quick Clean): 
 
 ========================================================================
                        EXECUTING STORAGE CLEANUP                        
@@ -119,45 +63,30 @@
 
   --- SYSTEM CACHES ---
 
-  [ CLEANING ] User and Windows Temp Directories...
+  [ CLEANING ] User & Windows Temp Directories...
                Purged %TEMP%, C:\Windows\Temp, and ServiceProfile disposable caches.
 
-  [ CLEANING ] DirectX, GPU Shaders & Windows Error Reporting Logs...
+  [ CLEANING ] DirectX, GPU Shaders & WER Logs...
                Purged DirectX, NVIDIA, AMD, Intel shader caches and WER logs.
 
-  [ CLEANING ] Windows Recycle Bin...
-               Emptied Windows Recycle Bin across all drives.
+  [ CLEANING ] Explorer Thumbnail & Icon Caches...
+               Purged Explorer thumbcache and iconcache databases.
 
   --- BROWSER CACHES ---
 
   [ CLEANING ] Google Chrome Web & Code Cache...
                Purged Google Chrome web cache, code cache, and GPU cache.
 
-  [ CLEANING ] Mozilla Firefox Web & Startup Cache...
-               Purged Mozilla Firefox cache2 and startupCache directories.
-
-  --- APP CACHES ---
-
-  [ CLEANING ] Spotify Audio Storage Cache...
-               Purged Spotify streaming audio storage cache.
-
-  [ CLEANING ] Discord Web & Code Cache...
-               Purged Discord web cache and code cache.
-
-  --- DEVELOPER TOOL CACHES ---
-
-  [ CLEANING ] Visual Studio Code Cache...
-               Purged Visual Studio Code web cache and compiled V8 data cache.
-
-  [ SKIPPED  ] NPM Package Cache
+  [ CLEANING ] Brave Browser Web & Code Cache...
+               Purged Brave Browser web cache, code cache, and GPU cache.
 
 ========================================================================
                         CLEANUP SUMMARY REPORT                          
 ========================================================================
   Target Volume         : Drive C:
-  Starting Free Space   : 14.74 GB
-  Ending Free Space     : 29.53 GB
-  Total Space Reclaimed : +14.79 GB
+  Starting Free Space   : 26.94 GB
+  Ending Free Space     : 27.24 GB
+  Total Space Reclaimed : +0.30 GB
   Overall Status        : Completed Successfully
 ========================================================================
 ```
@@ -180,8 +109,15 @@ Double-click [`cleanup.bat`](cleanup.bat). The launcher checks for Administrator
 Clone the repository and run directly from an elevated terminal:
 
 ```powershell
-# Interactive run with two-level category menu (default):
+# Interactive Action Hub Dashboard & 1-keystroke presets (default):
 .\cleanup.ps1
+
+# Launch modern Dark-Mode Graphical UI (WPF window):
+.\cleanup.ps1 -Gui
+
+# Fast unattended execution via presets (Quick or Full):
+.\cleanup.ps1 -Preset Quick
+.\cleanup.ps1 -Preset Full
 
 # Unattended run (clean all eligible targets without prompts):
 .\cleanup.ps1 -All
@@ -264,8 +200,10 @@ Clone the repository and run directly from an elevated terminal:
 
 | Flag | Purpose |
 | :--- | :--- |
-| `-All` | Cleans all eligible targets without interactive Yes/No confirmation prompts. |
+| `-All` | Cleans all eligible targets without interactive confirmation prompts. |
 | `-DryRun` | Simulates cleanup and prints targets without deleting files. |
+| `-Gui` | Launches the modern dark-mode graphical user interface (WPF window). |
+| `-Preset <Quick\|Full>` | Executes a predefined cleanup preset non-interactively (`Quick` for safe caches, `Full` for all). |
 | `-SkipSystem` | Skips the entire System Caches category (Temp, Shaders, Recycle Bin, Thumbnails, Updates, Delivery). |
 | `-SkipTemp` | Skips User & Windows Temp Directories. |
 | `-SkipShaders` | Skips DirectX, GPU shader caches, and WER error reporting logs. |
