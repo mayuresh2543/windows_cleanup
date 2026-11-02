@@ -17,15 +17,12 @@
           [1] Quick Clean (Default: Temp, Shaders, Thumbnails, Web Caches)
           [2] Full Clean (Purge all detected safe caches at once)
           [3] Interactive TUI Checklist (Arrow keys to navigate, Spacebar to toggle, Enter to run)
-          [4] Graphical UI (Modern Dark-Mode WPF Window with visual cards and toggles)
           [Q] Exit
-      - Automation Ready: Fully compatible with -All, -DryRun, -Preset, -Gui, and -Skip* flags.
+      - Automation Ready: Fully compatible with -All, -DryRun, -Preset, and -Skip* flags.
 .PARAMETER All
     Cleans all eligible targets non-interactively without prompts.
 .PARAMETER DryRun
     Simulates cleanup preview without deleting files.
-.PARAMETER Gui
-    Launches the modern dark-mode graphical user interface (WPF).
 .PARAMETER Preset
     Executes a predefined cleanup preset non-interactively ('Quick' or 'Full').
 .PARAMETER SkipSystem
@@ -119,8 +116,6 @@
 .EXAMPLE
     .\cleanup.ps1 -Preset Quick
 .EXAMPLE
-    .\cleanup.ps1 -Gui
-.EXAMPLE
     .\cleanup.ps1 -All -DryRun
 #>
 
@@ -128,7 +123,6 @@
 param(
     [switch]$All,
     [switch]$DryRun,
-    [switch]$Gui,
     [ValidateSet("Quick", "Full")]
     [string]$Preset,
     
@@ -1086,208 +1080,6 @@ function Invoke-TuiChecklist {
 }
 
 # -----------------------------------------------------------------------------
-# MODERN DARK-MODE GRAPHICAL UI (WPF / XAML)
-# -----------------------------------------------------------------------------
-
-function Show-ModernGui {
-    param([array]$Targets, [string]$SysDrive, [string]$FreeSpace)
-    
-    Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase -ErrorAction SilentlyContinue
-    
-    $xaml = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Windows Storage Deep Cleanup" Height="620" Width="720"
-        WindowStartupLocation="CenterScreen"
-        Background="#161616" Foreground="#E0E0E0" FontFamily="Segoe UI"
-        ResizeMode="CanResizeWithGrip">
-    <Window.Resources>
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#E0E0E0"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-    </Window.Resources>
-    
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        
-        <!-- Header -->
-        <Border Grid.Row="0" Margin="0,0,0,16" Padding="0,0,0,14" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Windows Storage Deep Cleanup" FontSize="22" FontWeight="Bold" Foreground="#00D2FF"/>
-                    <TextBlock Text="Non-destructive system storage optimizer for Windows 10/11" FontSize="12" Foreground="#888888" Margin="0,4,0,0"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Border Background="#222222" CornerRadius="6" Padding="12,8" BorderBrush="#333333" BorderThickness="1">
-                        <TextBlock Text="Volume Drive $SysDrive | $FreeSpace Free" FontSize="12" Foreground="#00D2FF" FontWeight="SemiBold"/>
-                    </Border>
-                </StackPanel>
-            </Grid>
-        </Border>
-        
-        <!-- Target List -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Name="TargetContainer" Margin="0,0,10,0"/>
-        </ScrollViewer>
-        
-        <!-- Footer -->
-        <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal">
-                    <TextBlock Text="Selected to Reclaim: " FontSize="13" Foreground="#AAAAAA"/>
-                    <TextBlock Name="TxtSelectedSize" Text="0 B" FontSize="14" FontWeight="Bold" Foreground="#2EA043"/>
-                </StackPanel>
-                
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Name="BtnSelectAll" Content="Select All" Width="90" Height="34" Margin="0,0,10,0" Background="#2A2A2A" Foreground="#CCCCCC"/>
-                    <Button Name="BtnSelectNone" Content="Deselect All" Width="90" Height="34" Margin="0,0,16,0" Background="#2A2A2A" Foreground="#CCCCCC"/>
-                    <Button Name="BtnClean" Content="Clean Selected" Width="135" Height="34" Background="#0080FF" Foreground="#FFFFFF"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-    </Grid>
-</Window>
-"@
-    try {
-        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xaml))
-        $win = [System.Windows.Markup.XamlReader]::Load($reader)
-        $container = $win.FindName("TargetContainer")
-        $txtSelected = $win.FindName("TxtSelectedSize")
-        $btnAll = $win.FindName("BtnSelectAll")
-        $btnNone = $win.FindName("BtnSelectNone")
-        $btnClean = $win.FindName("BtnClean")
-        
-        $checkboxMap = @{}
-        
-        $updateTotal = {
-            $sum = [int64]0
-            foreach ($t in $Targets) {
-                if ($checkboxMap.ContainsKey($t.Id) -and $checkboxMap[$t.Id].IsChecked) {
-                    $sum += $t.SizeBytes
-                }
-            }
-            $txtSelected.Text = Format-ByteSize $sum
-        }
-        
-        $grouped = $Targets | Group-Object Category
-        foreach ($grp in $grouped) {
-            $card = New-Object System.Windows.Controls.Border
-            $card.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#1E1E1E")
-            $card.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#2C2C2C")
-            $card.BorderThickness = New-Object System.Windows.Thickness(1)
-            $card.CornerRadius = New-Object System.Windows.CornerRadius(6)
-            $card.Margin = New-Object System.Windows.Thickness(0, 0, 0, 12)
-            $card.Padding = New-Object System.Windows.Thickness(14)
-            
-            $cardStack = New-Object System.Windows.Controls.StackPanel
-            
-            # Card header
-            $headerGrid = New-Object System.Windows.Controls.Grid
-            $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-            $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = [System.Windows.GridLength]::Auto
-            $headerGrid.ColumnDefinitions.Add($c1)
-            $headerGrid.ColumnDefinitions.Add($c2)
-            
-            $catTitle = New-Object System.Windows.Controls.TextBlock
-            $catTitle.Text = $grp.Name.ToUpper()
-            $catTitle.FontWeight = [System.Windows.FontWeights]::Bold
-            $catTitle.FontSize = 13
-            $catTitle.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#00D2FF")
-            [System.Windows.Controls.Grid]::SetColumn($catTitle, 0)
-            
-            $grpSum = ($grp.Group | Measure-Object -Property SizeBytes -Sum).Sum
-            $catBadge = New-Object System.Windows.Controls.TextBlock
-            $catBadge.Text = (Format-ByteSize $grpSum)
-            $catBadge.FontWeight = [System.Windows.FontWeights]::SemiBold
-            $catBadge.FontSize = 12
-            $catBadge.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#AAAAAA")
-            [System.Windows.Controls.Grid]::SetColumn($catBadge, 1)
-            
-            $headerGrid.Children.Add($catTitle) | Out-Null
-            $headerGrid.Children.Add($catBadge) | Out-Null
-            $cardStack.Children.Add($headerGrid) | Out-Null
-            
-            # Targets inside card
-            foreach ($t in $grp.Group) {
-                $tGrid = New-Object System.Windows.Controls.Grid
-                $tGrid.Margin = New-Object System.Windows.Thickness(0, 10, 0, 2)
-                $col1 = New-Object System.Windows.Controls.ColumnDefinition; $col1.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-                $col2 = New-Object System.Windows.Controls.ColumnDefinition; $col2.Width = [System.Windows.GridLength]::Auto
-                $tGrid.ColumnDefinitions.Add($col1)
-                $tGrid.ColumnDefinitions.Add($col2)
-                
-                $cb = New-Object System.Windows.Controls.CheckBox
-                $cb.Content = $t.Title
-                $cb.IsChecked = $t.Selected
-                $cb.Add_Checked({ & $updateTotal })
-                $cb.Add_Unchecked({ & $updateTotal })
-                $checkboxMap[$t.Id] = $cb
-                [System.Windows.Controls.Grid]::SetColumn($cb, 0)
-                
-                $sz = New-Object System.Windows.Controls.TextBlock
-                $sz.Text = $t.FormattedSize
-                $sz.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#888888")
-                $sz.FontSize = 12
-                $sz.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
-                [System.Windows.Controls.Grid]::SetColumn($sz, 1)
-                
-                $tGrid.Children.Add($cb) | Out-Null
-                $tGrid.Children.Add($sz) | Out-Null
-                $cardStack.Children.Add($tGrid) | Out-Null
-            }
-            
-            $card.Child = $cardStack
-            $container.Children.Add($card) | Out-Null
-        }
-        
-        $btnAll.Add_Click({
-            foreach ($cb in $checkboxMap.Values) { $cb.IsChecked = $true }
-        })
-        $btnNone.Add_Click({
-            foreach ($cb in $checkboxMap.Values) { $cb.IsChecked = $false }
-        })
-        
-        $btnClean.Add_Click({
-            $selected = @()
-            foreach ($t in $Targets) {
-                if ($checkboxMap.ContainsKey($t.Id) -and $checkboxMap[$t.Id].IsChecked) {
-                    $selected += $t
-                }
-            }
-            $win.Tag = $selected
-            $win.Close()
-        })
-        
-        & $updateTotal
-        $null = $win.ShowDialog()
-        return $win.Tag
-    } catch {
-        Write-Host "GUI could not be initialized: $_" -ForegroundColor Yellow
-        return $null
-    }
-}
-
-# -----------------------------------------------------------------------------
 # UNIFIED ACTION HUB SELECTION ENGINE
 # -----------------------------------------------------------------------------
 
@@ -1300,14 +1092,6 @@ if ($All) {
     $selectedTargets = @($activeTargets | Where-Object { $_.IsSafePreset })
 } elseif ($Preset -eq "Full") {
     $selectedTargets = @($activeTargets)
-} elseif ($Gui) {
-    $res = Show-ModernGui -Targets $activeTargets -SysDrive $sysDriveLetter -FreeSpace "$initialFreeGB GB"
-    if ($null -ne $res) {
-        $selectedTargets = @($res)
-    } else {
-        Write-Host "Cleanup cancelled." -ForegroundColor Yellow
-        exit 0
-    }
 } else {
     # Default Interactive Dashboard
     Write-Host ""
@@ -1357,10 +1141,9 @@ if ($All) {
     Write-Host "  [1] Quick Clean (Enter) - Safest daily caches (Temp, Shaders, Browsers) [DEFAULT]" -ForegroundColor White
     Write-Host "  [2] Full Clean          - Purge all detected disposable caches ($(Format-ByteSize $totalPurgeableBytes))" -ForegroundColor White
     Write-Host "  [3] Custom Selection    - Pick specific targets via interactive checklist" -ForegroundColor White
-    Write-Host "  [4] Open GUI Window     - Launch dark-mode graphical control panel" -ForegroundColor White
     Write-Host "  [Q] Exit                - Exit without making any changes" -ForegroundColor DarkGray
     Write-Host " -----------------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host " Select action [1-4, Q] (Press Enter for Quick Clean): " -NoNewline -ForegroundColor Yellow
+    Write-Host " Select action [1-3, Q] (Press Enter for Quick Clean): " -NoNewline -ForegroundColor Yellow
 
     $choice = if ([Console]::IsInputRedirected) { [Console]::In.ReadLine() } else { Read-Host }
     if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
@@ -1382,15 +1165,6 @@ if ($All) {
             $tuiResult = Invoke-TuiChecklist -Targets $activeTargets
             if ($null -ne $tuiResult) {
                 $selectedTargets = @($tuiResult)
-            } else {
-                Write-Host "Cleanup cancelled." -ForegroundColor Yellow
-                exit 0
-            }
-        }
-        "4" {
-            $guiResult = Show-ModernGui -Targets $activeTargets -SysDrive $sysDriveLetter -FreeSpace "$initialFreeGB GB"
-            if ($null -ne $guiResult) {
-                $selectedTargets = @($guiResult)
             } else {
                 Write-Host "Cleanup cancelled." -ForegroundColor Yellow
                 exit 0

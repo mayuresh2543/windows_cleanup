@@ -16,9 +16,8 @@
 
 ## Features
 
-- **Modern Action Hub & 1-Keystroke Presets**: Starts with an instant overview dashboard showing detected cache sizes across all categories. Press `[Enter]` to instantly run **Quick Clean** (safe temp, shaders, thumbnails, browser caches), `[2]` for **Full Clean**, `[3]` for the **Interactive TUI Checklist**, or `[4]` to launch the **Graphical UI**.
+- **Modern Action Hub & 1-Keystroke Presets**: Starts with an instant overview dashboard showing detected cache sizes across all categories. Press `[Enter]` to instantly run **Quick Clean** (safe temp, shaders, thumbnails, browser caches), `[2]` for **Full Clean**, or `[3]` for the **Interactive TUI Checklist**.
 - **Interactive TUI Checklist**: Granular console selection using keyboard arrow keys (`↑`/`↓`) to navigate, `[SPACE]` to toggle targets, `[A]` for all/none, and `[ENTER]` to start cleaning. No tedious letter typing or sequential questionnaires.
-- **Modern Dark-Mode Graphical UI (`-Gui`)**: Native Windows presentation window (WPF) with dark theme, category cards, toggle switches, and a live reclaimed space scoreboard. Built into Windows with zero external dependencies.
 - **Zero False-Positive Sizing**: Accurately measures Delivery Optimization via `FileSizeInCache` (eliminates phantom multi-gigabyte reports after cleanup), accurately queries Recycle Bin via Windows Shell COM (eliminates phantom 3.7 KB from `desktop.ini` and orphaned index headers), and clamps sub-kilobyte empty directory stubs.
 - **Automatic 0-Byte Bypass**: Categories and targets with 0 bytes, empty caches, or uninstalled applications are automatically hidden from view.
 - **GPU Hardware Shader Pruning**: Purges unmanaged NVIDIA, AMD, and Intel hardware shader disks alongside DirectX `D3DSCache`.
@@ -58,10 +57,9 @@
   [1] Quick Clean (Enter) - Safest daily caches (Temp, Shaders, Browsers) [DEFAULT]
   [2] Full Clean          - Purge all detected disposable caches (296.50 MB)
   [3] Custom Selection    - Pick specific targets via interactive checklist
-  [4] Open GUI Window     - Launch dark-mode graphical control panel
   [Q] Exit                - Exit without making any changes
  -----------------------------------------------------------------------
- Select action [1-4, Q] (Press Enter for Quick Clean): 
+ Select action [1-3, Q] (Press Enter for Quick Clean): 
 
 ========================================================================
                        EXECUTING STORAGE CLEANUP                        
@@ -118,9 +116,6 @@ Clone the repository and run directly from an elevated terminal:
 ```powershell
 # Interactive Action Hub Dashboard & 1-keystroke presets (default):
 .\cleanup.ps1
-
-# Launch modern Dark-Mode Graphical UI (WPF window):
-.\cleanup.ps1 -Gui
 
 # Fast unattended execution via presets (Quick or Full):
 .\cleanup.ps1 -Preset Quick
@@ -209,7 +204,6 @@ Clone the repository and run directly from an elevated terminal:
 | :--- | :--- |
 | `-All` | Cleans all eligible targets without interactive confirmation prompts. |
 | `-DryRun` | Simulates cleanup and prints targets without deleting files. |
-| `-Gui` | Launches the modern dark-mode graphical user interface (WPF window). |
 | `-Preset <Quick\|Full>` | Executes a predefined cleanup preset non-interactively (`Quick` for safe caches, `Full` for all). |
 | `-SkipSystem` | Skips the entire System Caches category (Temp, Shaders, Recycle Bin, Thumbnails, Updates, Delivery). |
 | `-SkipTemp` | Skips User & Windows Temp Directories. |
