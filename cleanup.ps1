@@ -988,14 +988,119 @@ $categoriesGrouped = $activeTargets | Group-Object Category
 function Invoke-TuiChecklist {
     param([array]$Targets)
     if ($Targets.Count -eq 0) { return @() }
-    if ([Console]::IsInputRedirected) {
+    if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) {
         return ($Targets | Where-Object { $_.Selected })
     }
-    
+
+    # Build flat display list (category headers + target rows) for viewport & O(1) row lookup
+    $displayLines = New-Object System.Collections.Generic.List[object]
+    $targetToDisplayIdx = New-Object int[] $Targets.Count
+    $currentCat = ""
+    for ($i = 0; $i -lt $Targets.Count; $i++) {
+        $t = $Targets[$i]
+        if ($t.Category -ne $currentCat) {
+            $currentCat = $t.Category
+            $displayLines.Add([PSCustomObject]@{ Type = "Category"; Category = $currentCat })
+        }
+        $targetToDisplayIdx[$i] = $displayLines.Count
+        $displayLines.Add([PSCustomObject]@{ Type = "Target"; TargetIndex = $i; Target = $t })
+    }
+
+    $winHeight = 30
+    $winWidth = 80
+    try {
+        $winHeight = [Console]::WindowHeight
+        $winWidth = [Console]::WindowWidth
+    } catch { }
+    $padWidth = [Math]::Min(72, [Math]::Max(40, $winWidth - 1))
+    $maxListRows = [Math]::Max(5, $winHeight - 12)
+    $viewHeight = [Math]::Min($displayLines.Count, $maxListRows)
+
+    $renderLineAtRow = {
+        param($rowTop, $lineObj, $isCursor)
+        [Console]::SetCursorPosition(0, $rowTop)
+        if ($lineObj.Type -eq "Category") {
+            $catText = "  --- $($lineObj.Category) ---"
+            if ($catText.Length -lt $padWidth) { $catText = $catText.PadRight($padWidth) }
+            Write-Host $catText -NoNewline -ForegroundColor DarkCyan
+            return
+        }
+
+        $t = $lineObj.Target
+        $prefix = if ($isCursor) { " >" } else { "  " }
+        $check = if ($t.Selected) { "[*]" } else { "[ ]" }
+        $idStr = $t.Number.ToString("00")
+        $titleStr = "{0,-38}" -f $t.Title
+        $sizeStr = $t.FormattedSize.PadLeft(12)
+        $printedLen = $prefix.Length + 1 + $check.Length + 1 + $idStr.Length + 3 + $titleStr.Length + $sizeStr.Length
+        $trail = if ($padWidth -gt $printedLen) { " " * ($padWidth - $printedLen) } else { "" }
+
+        if ($isCursor) {
+            Write-Host "$prefix " -NoNewline -ForegroundColor Yellow
+            Write-Host "$check [$idStr] " -NoNewline -ForegroundColor Cyan
+            Write-Host $titleStr -NoNewline -ForegroundColor White
+            Write-Host "$sizeStr$trail" -NoNewline -ForegroundColor Yellow
+        } else {
+            Write-Host "$prefix " -NoNewline
+            $checkColor = if ($t.Selected) { "Green" } else { "DarkGray" }
+            Write-Host "$check " -NoNewline -ForegroundColor $checkColor
+            Write-Host "[$idStr] " -NoNewline -ForegroundColor DarkGray
+            $nameColor = if ($t.Selected) { "White" } else { "Gray" }
+            Write-Host $titleStr -NoNewline -ForegroundColor $nameColor
+            Write-Host "$sizeStr$trail" -NoNewline -ForegroundColor DarkGray
+        }
+    }
+
+    $renderVisibleTargets = {
+        for ($v = 0; $v -lt $viewHeight; $v++) {
+            $lineObj = $displayLines[$scrollOffset + $v]
+            if ($lineObj.Type -eq "Target") {
+                & $renderLineAtRow ($listStartTop + $v) $lineObj ($lineObj.TargetIndex -eq $selectedIndex)
+            }
+        }
+        & $renderSummaryAtRow $summaryRow
+    }
+
+    $renderSummaryAtRow = {
+        param($summaryRow)
+        $selectedCount = 0
+        $selectedBytes = [int64]0
+        foreach ($t in $Targets) {
+            if ($t.Selected) {
+                $selectedCount++
+                $selectedBytes += $t.SizeBytes
+            }
+        }
+        $sizeText = Format-ByteSize $selectedBytes
+        $leftPrefix = "  Selected Space : "
+        $countText = " ($selectedCount target(s))"
+        $actionText = "[ENTER: Start Clean]"
+        $leftLen = $leftPrefix.Length + $sizeText.Length + $countText.Length
+        $gapLen = [Math]::Max(2, 52 - $leftLen)
+        $gap = " " * $gapLen
+        $totalLen = $leftLen + $gapLen + $actionText.Length
+        $trail = if ($padWidth -gt $totalLen) { " " * ($padWidth - $totalLen) } else { "" }
+
+        [Console]::SetCursorPosition(0, $summaryRow)
+        Write-Host $leftPrefix -NoNewline -ForegroundColor Gray
+        Write-Host $sizeText -NoNewline -ForegroundColor Green
+        Write-Host "$countText$gap" -NoNewline -ForegroundColor Gray
+        Write-Host "$actionText$trail" -NoNewline -ForegroundColor Cyan
+    }
+
     $selectedIndex = 0
+    $scrollOffset = 0
     $running = $true
-    
-    while ($running) {
+    $cancelled = $false
+
+    $prevCursorVisible = $true
+    try {
+        $prevCursorVisible = [Console]::CursorVisible
+        [Console]::CursorVisible = $false
+    } catch { }
+
+    try {
+        # Clear once on entry; all subsequent updates happen in-place without Clear-Host
         Clear-Host
         Write-Host ""
         Write-Host "========================================================================" -ForegroundColor DarkCyan
@@ -1003,79 +1108,122 @@ function Invoke-TuiChecklist {
         Write-Host "  [UP/DOWN] Move  |  [SPACE] Toggle  |  [A] All/None  |  [ENTER] Clean  " -ForegroundColor DarkGray
         Write-Host "========================================================================" -ForegroundColor DarkCyan
         Write-Host ""
-        
-        $currentCat = ""
-        for ($i = 0; $i -lt $Targets.Count; $i++) {
-            $t = $Targets[$i]
-            if ($t.Category -ne $currentCat) {
-                $currentCat = $t.Category
-                Write-Host "  --- $currentCat ---" -ForegroundColor DarkCyan
-            }
-            
-            $prefix = if ($i -eq $selectedIndex) { " >" } else { "  " }
-            $check = if ($t.Selected) { "[*]" } else { "[ ]" }
-            $idStr = $t.Number.ToString("00")
-            
-            if ($i -eq $selectedIndex) {
-                Write-Host "$prefix " -NoNewline -ForegroundColor Yellow
-                Write-Host "$check [$idStr] " -NoNewline -ForegroundColor Cyan
-                Write-Host ("{0,-38}" -f $t.Title) -NoNewline -ForegroundColor White
-                Write-Host ($t.FormattedSize.PadLeft(12)) -ForegroundColor Yellow
-            } else {
-                Write-Host "$prefix " -NoNewline
-                $checkColor = if ($t.Selected) { "Green" } else { "DarkGray" }
-                Write-Host "$check " -NoNewline -ForegroundColor $checkColor
-                Write-Host "[$idStr] " -NoNewline -ForegroundColor DarkGray
-                $nameColor = if ($t.Selected) { "White" } else { "Gray" }
-                Write-Host ("{0,-38}" -f $t.Title) -NoNewline -ForegroundColor $nameColor
-                Write-Host ($t.FormattedSize.PadLeft(12)) -ForegroundColor DarkGray
-            }
+
+        $listStartTop = [Console]::CursorTop
+        for ($v = 0; $v -lt $viewHeight; $v++) {
+            $lineObj = $displayLines[$scrollOffset + $v]
+            $isCursor = ($lineObj.Type -eq "Target" -and $lineObj.TargetIndex -eq $selectedIndex)
+            & $renderLineAtRow ($listStartTop + $v) $lineObj $isCursor
         }
-        
-        $selectedCount = ($Targets | Where-Object { $_.Selected }).Count
-        $selectedBytes = ($Targets | Where-Object { $_.Selected } | Measure-Object -Property SizeBytes -Sum).Sum
-        if ($null -eq $selectedBytes) { $selectedBytes = 0 }
-        
+
+        [Console]::SetCursorPosition(0, $listStartTop + $viewHeight)
         Write-Host ""
         Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-        Write-Host "  Selected Space : " -NoNewline -ForegroundColor Gray
-        Write-Host (Format-ByteSize $selectedBytes) -NoNewline -ForegroundColor Green
-        Write-Host " ($selectedCount target(s))" -NoNewline -ForegroundColor Gray
-        Write-Host "                    [ENTER: Start Clean]" -ForegroundColor Cyan
+        $summaryRow = [Console]::CursorTop
+        & $renderSummaryAtRow $summaryRow
+        [Console]::SetCursorPosition(0, $summaryRow + 1)
         Write-Host "========================================================================" -ForegroundColor DarkCyan
         Write-Host "  [R] Recommended Preset  |  [Q] Cancel / Return to Menu" -ForegroundColor DarkGray
-        
-        $key = [Console]::ReadKey($true)
-        switch ($key.Key) {
-            "UpArrow" {
-                if ($selectedIndex -gt 0) { $selectedIndex-- }
-                else { $selectedIndex = $Targets.Count - 1 }
+        $footerEndRow = [Console]::CursorTop
+
+        while ($running) {
+            $key = [Console]::ReadKey($true)
+            $prevIndex = $selectedIndex
+
+            switch ($key.Key) {
+                "UpArrow" {
+                    if ($selectedIndex -gt 0) { $selectedIndex-- }
+                    else { $selectedIndex = $Targets.Count - 1 }
+                }
+                "DownArrow" {
+                    if ($selectedIndex -lt ($Targets.Count - 1)) { $selectedIndex++ }
+                    else { $selectedIndex = 0 }
+                }
+                "Home" {
+                    $selectedIndex = 0
+                }
+                "End" {
+                    $selectedIndex = $Targets.Count - 1
+                }
+                "PageUp" {
+                    $selectedIndex = [Math]::Max(0, $selectedIndex - [Math]::Max(1, $viewHeight - 2))
+                }
+                "PageDown" {
+                    $selectedIndex = [Math]::Min($Targets.Count - 1, $selectedIndex + [Math]::Max(1, $viewHeight - 2))
+                }
+                "Spacebar" {
+                    $Targets[$selectedIndex].Selected = -not $Targets[$selectedIndex].Selected
+                    $dispIdx = $targetToDisplayIdx[$selectedIndex]
+                    $rowTop = $listStartTop + ($dispIdx - $scrollOffset)
+                    & $renderLineAtRow $rowTop $displayLines[$dispIdx] $true
+                    & $renderSummaryAtRow $summaryRow
+                    continue
+                }
+                "A" {
+                    $anyUnselected = ($Targets | Where-Object { -not $_.Selected }).Count -gt 0
+                    foreach ($t in $Targets) { $t.Selected = $anyUnselected }
+                    & $renderVisibleTargets
+                    continue
+                }
+                "R" {
+                    foreach ($t in $Targets) { $t.Selected = $t.IsSafePreset }
+                    & $renderVisibleTargets
+                    continue
+                }
+                "Enter" {
+                    $running = $false
+                    continue
+                }
+                "Escape" {
+                    $cancelled = $true
+                    $running = $false
+                    continue
+                }
+                "Q" {
+                    $cancelled = $true
+                    $running = $false
+                    continue
+                }
+                default {
+                    continue
+                }
             }
-            "DownArrow" {
-                if ($selectedIndex -lt ($Targets.Count - 1)) { $selectedIndex++ }
-                else { $selectedIndex = 0 }
-            }
-            "Spacebar" {
-                $Targets[$selectedIndex].Selected = -not $Targets[$selectedIndex].Selected
-            }
-            "A" {
-                $anyUnselected = ($Targets | Where-Object { -not $_.Selected }).Count -gt 0
-                foreach ($t in $Targets) { $t.Selected = $anyUnselected }
-            }
-            "R" {
-                foreach ($t in $Targets) { $t.Selected = $t.IsSafePreset }
-            }
-            "Enter" {
-                $running = $false
-            }
-            "Escape" {
-                return $null
-            }
-            "Q" {
-                return $null
+
+            if ($prevIndex -ne $selectedIndex) {
+                $targetDispIdx = $targetToDisplayIdx[$selectedIndex]
+                $newScrollOffset = $scrollOffset
+                if ($targetDispIdx -lt $scrollOffset) {
+                    $newScrollOffset = $targetDispIdx
+                    if ($newScrollOffset -gt 0 -and $displayLines[$newScrollOffset - 1].Type -eq "Category") {
+                        $newScrollOffset--
+                    }
+                } elseif ($targetDispIdx -ge ($scrollOffset + $viewHeight)) {
+                    $newScrollOffset = $targetDispIdx - $viewHeight + 1
+                }
+
+                if ($newScrollOffset -ne $scrollOffset) {
+                    $scrollOffset = $newScrollOffset
+                    for ($v = 0; $v -lt $viewHeight; $v++) {
+                        $lineObj = $displayLines[$scrollOffset + $v]
+                        $isCursor = ($lineObj.Type -eq "Target" -and $lineObj.TargetIndex -eq $selectedIndex)
+                        & $renderLineAtRow ($listStartTop + $v) $lineObj $isCursor
+                    }
+                } else {
+                    $prevDispIdx = $targetToDisplayIdx[$prevIndex]
+                    if ($prevDispIdx -ge $scrollOffset -and $prevDispIdx -lt ($scrollOffset + $viewHeight)) {
+                        & $renderLineAtRow ($listStartTop + ($prevDispIdx - $scrollOffset)) $displayLines[$prevDispIdx] $false
+                    }
+                    & $renderLineAtRow ($listStartTop + ($targetDispIdx - $scrollOffset)) $displayLines[$targetDispIdx] $true
+                }
             }
         }
+
+        try { [Console]::SetCursorPosition(0, $footerEndRow) } catch { }
+    } finally {
+        try { [Console]::CursorVisible = $prevCursorVisible } catch { }
     }
+
+    if ($cancelled) { return $null }
     return ($Targets | Where-Object { $_.Selected })
 }
 
